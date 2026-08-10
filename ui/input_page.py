@@ -16,10 +16,6 @@ PAKISTAN_CENTER = [
 
 def render_input_page():
 
-    debug_project_structure()
-
-    # your existing code continues here
-
     st.title("🌾 Farm Data Input")
 
     st.markdown(
