@@ -342,27 +342,35 @@ def update_farmer(
     return updated
 
 
-def delete_farmer(farmer_id):
+def delete_farm(farm_id):
+    """
+    Delete a farm and all fields belonging to that farm.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    connection = get_connection()
+    try:
+        # Delete fields belonging to the farm first
+        cursor.execute(
+            "DELETE FROM fields WHERE farm_id = ?",
+            (farm_id,)
+        )
 
-    cursor = connection.cursor()
+        # Then delete the farm
+        cursor.execute(
+            "DELETE FROM farms WHERE id = ?",
+            (farm_id,)
+        )
 
-    cursor.execute(
-        """
-        DELETE FROM farmers
-        WHERE id = ?
-        """,
-        (farmer_id,),
-    )
+        conn.commit()
+        return True
 
-    connection.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
-    deleted = cursor.rowcount > 0
-
-    connection.close()
-
-    return deleted
+    finally:
+        conn.close()
 
 
 # ============================================================
