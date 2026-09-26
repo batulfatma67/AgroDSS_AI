@@ -2074,215 +2074,228 @@ def show_farmer_farm():
 # ============================================================
 
 def show_gis_map():
-
-    section_header(
-        "🗺️ GIS & Farm Map",
-        "View registered farms and their geographic locations.",
-    )
+    st.markdown("## 🗺️ GIS & Farm Map")
+    st.caption("Explore registered farms and fields using satellite, street, and terrain basemaps.")
 
     farms = get_farms()
 
     if not farms:
-
-        st.info(
-            "No farms are available yet. "
-            "Add a farm first."
-        )
-
+        st.info("No farms have been registered yet.")
         return
 
-    farm_options = {
-        (
-            f"{farm['farm_name']} — "
-            f"{farm['farmer_name']} "
-            f"(ID: {farm['id']})"
-        ):
-        farm["id"]
-        for farm in farms
-    }
+    # ---------------------------------------------------------
+    # Find valid farm coordinates
+    # ---------------------------------------------------------
+    valid_farms = []
 
-    selected_name = st.selectbox(
-        "Select Farm",
-        list(farm_options.keys()),
-    )
+    for farm in farms:
+        try:
+            lat = float(farm["latitude"])
+            lon = float(farm["longitude"])
 
-    selected_id = farm_options[
-        selected_name
-    ]
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                valid_farms.append((farm, lat, lon))
+        except (TypeError, ValueError):
+            continue
 
-    selected_farm = get_farm(
-        selected_id
-    )
-
-    if not selected_farm:
-
-        st.error(
-            "Selected farm could not be found."
-        )
-
-        return
-
-    latitude = selected_farm["latitude"]
-    longitude = selected_farm["longitude"]
-
-    if latitude is None or longitude is None:
-
+    if not valid_farms:
         st.warning(
-            "This farm does not have coordinates."
+            "No farms have valid coordinates yet. "
+            "Add latitude and longitude to a farm first."
         )
-
         return
 
-    col1, col2, col3, col4 = st.columns(4)
+    # ---------------------------------------------------------
+    # Map controls
+    # ---------------------------------------------------------
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric(
-            "Farm",
-            selected_farm["farm_name"],
-        )
+        st.metric("Registered Farms", len(farms))
 
     with col2:
-        st.metric(
-            "Area",
-            f"{selected_farm['area_acres']} acres",
-        )
+        st.metric("Mapped Farms", len(valid_farms))
 
     with col3:
-        st.metric(
-            "Latitude",
-            f"{latitude:.6f}",
-        )
+        st.metric("Map Layers", "3")
 
-    with col4:
-        st.metric(
-            "Longitude",
-            f"{longitude:.6f}",
-        )
+    st.markdown("---")
 
-    st.subheader("Farm Location")
+    # ---------------------------------------------------------
+    # Calculate map center
+    # ---------------------------------------------------------
+    center_lat = sum(item[1] for item in valid_farms) / len(valid_farms)
+    center_lon = sum(item[2] for item in valid_farms) / len(valid_farms)
 
-    farm_map = folium.Map(
-        location=[
-            latitude,
-            longitude,
-        ],
-        zoom_start=13,
+    # ---------------------------------------------------------
+    # Create base map
+    # ---------------------------------------------------------
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=12,
         control_scale=True,
+        zoom_control=True,
+        tiles=None
     )
 
-    folium.Marker(
-        location=[
-            latitude,
-            longitude,
-        ],
-        tooltip=selected_farm["farm_name"],
-        popup=(
-            f"<b>{selected_farm['farm_name']}</b><br>"
-            f"Farmer: {selected_farm['farmer_name']}<br>"
-            f"Location: "
-            f"{selected_farm['place_name'] or ''}, "
-            f"{selected_farm['tehsil'] or ''}, "
-            f"{selected_farm['district'] or ''}<br>"
-            f"Area: {selected_farm['area_acres']} acres<br>"
-            f"Irrigation: {selected_farm['irrigation_system']}<br>"
-            f"Soil: {selected_farm['soil_type']}"
+    # ---------------------------------------------------------
+    # 1. OpenStreetMap
+    # ---------------------------------------------------------
+    folium.TileLayer(
+        tiles="OpenStreetMap",
+        name="🗺️ Street Map",
+        overlay=False,
+        control=True,
+        show=False
+    ).add_to(m)
+
+    # ---------------------------------------------------------
+    # 2. Esri World Imagery
+    # ---------------------------------------------------------
+    folium.TileLayer(
+        tiles=(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/"
+            "World_Imagery/MapServer/tile/{z}/{y}/{x}"
         ),
-        icon=folium.Icon(
-            icon="leaf",
-            prefix="fa",
-        ),
-    ).add_to(farm_map)
+        attr="Esri World Imagery",
+        name="🛰️ Satellite",
+        overlay=False,
+        control=True,
+        show=True
+    ).add_to(m)
 
-    st_folium(
-        farm_map,
-        width=None,
-        height=500,
-        returned_objects=[],
+    # ---------------------------------------------------------
+    # 3. OpenTopoMap
+    # ---------------------------------------------------------
+    folium.TileLayer(
+        tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        attr="OpenTopoMap",
+        name="⛰️ Terrain",
+        overlay=False,
+        control=True,
+        show=False
+    ).add_to(m)
+
+    # ---------------------------------------------------------
+    # Farm marker layer
+    # ---------------------------------------------------------
+    farm_layer = folium.FeatureGroup(
+        name="🌾 Farms",
+        show=True
     )
 
-    st.divider()
-
-    st.subheader("📍 Administrative Location")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.write(
-            f"**Province:** "
-            f"{selected_farm['province'] or '—'}"
-        )
-
-        st.write(
-            f"**District:** "
-            f"{selected_farm['district'] or '—'}"
-        )
-
-        st.write(
-            f"**Tehsil:** "
-            f"{selected_farm['tehsil'] or '—'}"
-        )
-
-    with col2:
-
-        st.write(
-            f"**Place:** "
-            f"{selected_farm['place_name'] or '—'}"
-        )
-
-        st.write(
-            f"**Latitude:** {latitude:.6f}"
-        )
-
-        st.write(
-            f"**Longitude:** {longitude:.6f}"
-        )
-
-    st.divider()
-
-    st.subheader("🌱 Fields at This Farm")
-
-    fields = get_fields_by_farm(
-        selected_id
+    # ---------------------------------------------------------
+    # Field marker layer
+    # ---------------------------------------------------------
+    field_layer = folium.FeatureGroup(
+        name="🌱 Fields",
+        show=True
     )
 
-    if not fields:
+    # ---------------------------------------------------------
+    # Add farms
+    # ---------------------------------------------------------
+    for farm, lat, lon in valid_farms:
 
-        st.info(
-            "No fields have been registered for this farm."
-        )
+        farmer_name = farm["farmer_name"] if "farmer_name" in farm.keys() else "Unknown"
 
-    else:
+        farm_name = farm["farm_name"]
+
+        area = farm["area_acres"]
+
+        irrigation = farm["irrigation_system"]
+
+        soil = farm["soil_type"]
+
+        popup_html = f"""
+        <div style="width:260px;">
+            <h4 style="margin-bottom:8px;">
+                🌾 {farm_name}
+            </h4>
+
+            <b>Farmer:</b> {farmer_name}<br>
+            <b>Area:</b> {area} acres<br>
+            <b>Irrigation:</b> {irrigation}<br>
+            <b>Soil:</b> {soil}<br>
+            <b>Latitude:</b> {lat:.6f}<br>
+            <b>Longitude:</b> {lon:.6f}
+        </div>
+        """
+
+        folium.Marker(
+            location=[lat, lon],
+            tooltip=f"🌾 {farm_name}",
+            popup=folium.Popup(
+                popup_html,
+                max_width=320
+            ),
+            icon=folium.Icon(
+                icon="home",
+                prefix="fa"
+            )
+        ).add_to(farm_layer)
+
+        # -----------------------------------------------------
+        # Add fields belonging to this farm
+        # -----------------------------------------------------
+        try:
+            fields = get_fields_by_farm(farm["id"])
+        except Exception:
+            fields = []
 
         for field in fields:
 
-            with st.container(border=True):
+            # Fields may not have their own coordinates in the
+            # current database, so display them around the farm
+            # only if coordinates exist.
+            try:
+                field_lat = float(field["latitude"])
+                field_lon = float(field["longitude"])
+            except (KeyError, TypeError, ValueError):
+                continue
 
-                st.write(
-                    f"**{field['field_name']}**"
-                )
+            field_popup = f"""
+            <div style="width:240px;">
+                <h4>🌱 {field["field_name"]}</h4>
+                <b>Crop:</b> {field["crop"]}<br>
+                <b>Variety:</b> {field["variety"]}<br>
+                <b>Area:</b> {field["area_acres"]} acres<br>
+                <b>Crop Stage:</b> {field["crop_stage"]}
+            </div>
+            """
 
-                col1, col2, col3 = st.columns(3)
+            folium.CircleMarker(
+                location=[field_lat, field_lon],
+                radius=7,
+                popup=folium.Popup(
+                    field_popup,
+                    max_width=300
+                ),
+                tooltip=f"🌱 {field['field_name']}"
+            ).add_to(field_layer)
 
-                with col1:
+    farm_layer.add_to(m)
+    field_layer.add_to(m)
 
-                    st.write(
-                        f"Crop: "
-                        f"{field['crop'] or 'Not specified'}"
-                    )
+    # ---------------------------------------------------------
+    # Layer switcher
+    # ---------------------------------------------------------
+    folium.LayerControl(
+        position="topright",
+        collapsed=False
+    ).add_to(m)
 
-                with col2:
+    # ---------------------------------------------------------
+    # Display map
+    # ---------------------------------------------------------
+    st.markdown("### 📍 Farm Locations")
 
-                    st.write(
-                        f"Area: "
-                        f"{field['area_acres']} acres"
-                    )
-
-                with col3:
-
-                    st.write(
-                        f"Stage: {field['crop_stage']}"
-                    )
+    st_folium(
+        m,
+        width=None,
+        height=650,
+        returned_objects=[]
+    )
 
 
 # ============================================================
