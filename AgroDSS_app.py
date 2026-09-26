@@ -2077,6 +2077,10 @@ def show_farmer_farm():
 # GIS MAP
 # ============================================================
 
+# ============================================================
+# GIS MAP
+# ============================================================
+
 def show_gis_map():
     st.markdown("## 🗺️ GIS & Farm Map")
     st.caption(
@@ -2264,7 +2268,9 @@ def show_gis_map():
             for item in valid_farms
         ) / len(valid_farms)
 
-        zoom_start = 10
+        # Increased from 10 to 14
+        # This gives a much more detailed initial view.
+        zoom_start = 14
 
     else:
 
@@ -2279,6 +2285,7 @@ def show_gis_map():
         center_lat = selected_farm_data[1]
         center_lon = selected_farm_data[2]
 
+        # Detailed farm-level view
         zoom_start = 16
 
     # =========================================================
@@ -2465,7 +2472,6 @@ def show_gis_map():
             show=True
         )
 
-        # Find likely district-name column
         district_name_column = None
 
         possible_names = [
@@ -2640,14 +2646,8 @@ def show_gis_map():
             lon
         ])
 
-        # -----------------------------------------------------
-        # FARM ID
-        # -----------------------------------------------------
         farm_id = f"F-{index:03d}"
 
-        # -----------------------------------------------------
-        # FARM NAME
-        # -----------------------------------------------------
         try:
             farm_name = str(
                 farm["farm_name"]
@@ -2655,9 +2655,6 @@ def show_gis_map():
         except Exception:
             farm_name = farm_id
 
-        # -----------------------------------------------------
-        # FARMER
-        # -----------------------------------------------------
         try:
 
             farmer_name = (
@@ -2669,9 +2666,6 @@ def show_gis_map():
         except Exception:
             farmer_name = "Unknown"
 
-        # -----------------------------------------------------
-        # OTHER INFORMATION
-        # -----------------------------------------------------
         def get_optional(
             row,
             column,
@@ -2730,9 +2724,6 @@ def show_gis_map():
             "place_name"
         )
 
-        # -----------------------------------------------------
-        # POPUP
-        # -----------------------------------------------------
         popup_html = f"""
         <div style="
             width: 300px;
@@ -2791,9 +2782,6 @@ def show_gis_map():
         </div>
         """
 
-        # -----------------------------------------------------
-        # SELECTED FARM?
-        # -----------------------------------------------------
         is_selected = (
             selected_farm != "All Farms"
             and farm_lookup.get(
@@ -2811,9 +2799,6 @@ def show_gis_map():
             marker_color = "#1b8f3a"
             marker_size = 32
 
-        # -----------------------------------------------------
-        # FARM LABEL
-        # -----------------------------------------------------
         marker_html = f"""
         <div style="
             background: {marker_color};
@@ -2866,9 +2851,11 @@ def show_gis_map():
         and len(farm_bounds) > 1
     ):
 
+        # Increased from max_zoom=14 to max_zoom=16
+        # so the map can zoom further into the farms.
         m.fit_bounds(
             farm_bounds,
-            max_zoom=14
+            max_zoom=16
         )
 
     # =========================================================
