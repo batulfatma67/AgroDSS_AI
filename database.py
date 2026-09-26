@@ -10,11 +10,7 @@ from datetime import datetime
 BASE_DIR = Path(__file__).resolve().parent
 
 DATABASE_DIR = BASE_DIR / "data"
-
-DATABASE_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+DATABASE_DIR.mkdir(parents=True, exist_ok=True)
 
 DATABASE_PATH = DATABASE_DIR / "agridds.db"
 
@@ -32,7 +28,37 @@ def get_connection():
 
     connection.row_factory = sqlite3.Row
 
+    # Enable foreign keys
+    connection.execute("PRAGMA foreign_keys = ON")
+
     return connection
+
+
+# ============================================================
+# DATABASE MIGRATION HELPERS
+# ============================================================
+
+def add_column_if_missing(connection, table_name, column_name, column_definition):
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        f"PRAGMA table_info({table_name})"
+    )
+
+    columns = [
+        row["name"]
+        for row in cursor.fetchall()
+    ]
+
+    if column_name not in columns:
+
+        cursor.execute(
+            f"""
+            ALTER TABLE {table_name}
+            ADD COLUMN {column_name} {column_definition}
+            """
+        )
 
 
 # ============================================================
@@ -85,6 +111,14 @@ def initialize_database():
 
             area_acres REAL,
 
+            province TEXT,
+
+            district TEXT,
+
+            tehsil TEXT,
+
+            place_name TEXT,
+
             latitude REAL,
 
             longitude REAL,
@@ -97,6 +131,7 @@ def initialize_database():
 
             FOREIGN KEY (farmer_id)
                 REFERENCES farmers(id)
+                ON DELETE CASCADE
 
         )
         """
@@ -130,10 +165,46 @@ def initialize_database():
 
             FOREIGN KEY (farm_id)
                 REFERENCES farms(id)
+                ON DELETE CASCADE
 
         )
         """
     )
+
+    # ========================================================
+    # MIGRATE EXISTING FARMS TABLE
+    # ========================================================
+
+    add_column_if_missing(
+        connection,
+        "farms",
+        "province",
+        "TEXT",
+    )
+
+    add_column_if_missing(
+        connection,
+        "farms",
+        "district",
+        "TEXT",
+    )
+
+    add_column_if_missing(
+        connection,
+        "farms",
+        "tehsil",
+        "TEXT",
+    )
+
+    add_column_if_missing(
+        connection,
+        "farms",
+        "place_name",
+        "TEXT",
+    )
+
+    # Existing farms already have latitude/longitude,
+    # so those columns are NOT added again.
 
     connection.commit()
 
@@ -181,7 +252,6 @@ def add_farmer(
     farmer_id = cursor.lastrowid
 
     connection.commit()
-
     connection.close()
 
     return farmer_id
@@ -230,6 +300,71 @@ def get_farmer(farmer_id):
     return farmer
 
 
+def update_farmer(
+    farmer_id,
+    name,
+    phone="",
+    village="",
+    province="",
+):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE farmers
+
+        SET
+            name = ?,
+            phone = ?,
+            village = ?,
+            province = ?
+
+        WHERE id = ?
+        """,
+        (
+            name,
+            phone,
+            village,
+            province,
+            farmer_id,
+        ),
+    )
+
+    connection.commit()
+
+    updated = cursor.rowcount > 0
+
+    connection.close()
+
+    return updated
+
+
+def delete_farmer(farmer_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM farmers
+        WHERE id = ?
+        """,
+        (farmer_id,),
+    )
+
+    connection.commit()
+
+    deleted = cursor.rowcount > 0
+
+    connection.close()
+
+    return deleted
+
+
 # ============================================================
 # FARM FUNCTIONS
 # ============================================================
@@ -242,6 +377,10 @@ def add_farm(
     longitude,
     irrigation_system,
     soil_type,
+    province="",
+    district="",
+    tehsil="",
+    place_name="",
 ):
 
     connection = get_connection()
@@ -257,24 +396,46 @@ def add_farm(
             farmer_id,
             farm_name,
             area_acres,
+
+            province,
+            district,
+            tehsil,
+            place_name,
+
             latitude,
             longitude,
+
             irrigation_system,
             soil_type,
+
             created_at
 
         )
 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?,
+            ?, ?,
+            ?
+        )
         """,
         (
             farmer_id,
             farm_name,
             area_acres,
+
+            province,
+            district,
+            tehsil,
+            place_name,
+
             latitude,
             longitude,
+
             irrigation_system,
             soil_type,
+
             created_at,
         ),
     )
@@ -282,7 +443,6 @@ def add_farm(
     farm_id = cursor.lastrowid
 
     connection.commit()
-
     connection.close()
 
     return farm_id
@@ -316,6 +476,35 @@ def get_farms():
     return farms
 
 
+def get_farm(farm_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            farms.*,
+            farmers.name AS farmer_name
+
+        FROM farms
+
+        LEFT JOIN farmers
+            ON farms.farmer_id = farmers.id
+
+        WHERE farms.id = ?
+        """,
+        (farm_id,),
+    )
+
+    farm = cursor.fetchone()
+
+    connection.close()
+
+    return farm
+
+
 def get_farms_by_farmer(farmer_id):
 
     connection = get_connection()
@@ -337,6 +526,99 @@ def get_farms_by_farmer(farmer_id):
     connection.close()
 
     return farms
+
+
+def update_farm(
+    farm_id,
+    farmer_id,
+    farm_name,
+    area_acres,
+    latitude,
+    longitude,
+    irrigation_system,
+    soil_type,
+    province="",
+    district="",
+    tehsil="",
+    place_name="",
+):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE farms
+
+        SET
+            farmer_id = ?,
+            farm_name = ?,
+            area_acres = ?,
+
+            province = ?,
+            district = ?,
+            tehsil = ?,
+            place_name = ?,
+
+            latitude = ?,
+            longitude = ?,
+
+            irrigation_system = ?,
+            soil_type = ?
+
+        WHERE id = ?
+        """,
+        (
+            farmer_id,
+            farm_name,
+            area_acres,
+
+            province,
+            district,
+            tehsil,
+            place_name,
+
+            latitude,
+            longitude,
+
+            irrigation_system,
+            soil_type,
+
+            farm_id,
+        ),
+    )
+
+    connection.commit()
+
+    updated = cursor.rowcount > 0
+
+    connection.close()
+
+    return updated
+
+
+def delete_farm(farm_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM farms
+        WHERE id = ?
+        """,
+        (farm_id,),
+    )
+
+    connection.commit()
+
+    deleted = cursor.rowcount > 0
+
+    connection.close()
+
+    return deleted
 
 
 # ============================================================
@@ -391,7 +673,6 @@ def add_field(
     field_id = cursor.lastrowid
 
     connection.commit()
-
     connection.close()
 
     return field_id
@@ -429,6 +710,39 @@ def get_fields():
     return fields
 
 
+def get_field(field_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            fields.*,
+            farms.farm_name,
+            farmers.name AS farmer_name
+
+        FROM fields
+
+        LEFT JOIN farms
+            ON fields.farm_id = farms.id
+
+        LEFT JOIN farmers
+            ON farms.farmer_id = farmers.id
+
+        WHERE fields.id = ?
+        """,
+        (field_id,),
+    )
+
+    field = cursor.fetchone()
+
+    connection.close()
+
+    return field
+
+
 def get_fields_by_farm(farm_id):
 
     connection = get_connection()
@@ -450,6 +764,80 @@ def get_fields_by_farm(farm_id):
     connection.close()
 
     return fields
+
+
+def update_field(
+    field_id,
+    farm_id,
+    field_name,
+    crop,
+    variety,
+    sowing_date,
+    crop_stage,
+    area_acres,
+):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE fields
+
+        SET
+            farm_id = ?,
+            field_name = ?,
+            crop = ?,
+            variety = ?,
+            sowing_date = ?,
+            crop_stage = ?,
+            area_acres = ?
+
+        WHERE id = ?
+        """,
+        (
+            farm_id,
+            field_name,
+            crop,
+            variety,
+            sowing_date,
+            crop_stage,
+            area_acres,
+            field_id,
+        ),
+    )
+
+    connection.commit()
+
+    updated = cursor.rowcount > 0
+
+    connection.close()
+
+    return updated
+
+
+def delete_field(field_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM fields
+        WHERE id = ?
+        """,
+        (field_id,),
+    )
+
+    connection.commit()
+
+    deleted = cursor.rowcount > 0
+
+    connection.close()
+
+    return deleted
 
 
 # ============================================================
@@ -502,7 +890,7 @@ def get_dashboard_statistics():
 
 
 # ============================================================
-# INITIALIZE DATABASE WHEN MODULE LOADS
+# INITIALIZE DATABASE
 # ============================================================
 
 initialize_database()
