@@ -2077,20 +2077,18 @@ def show_farmer_farm():
 # GIS MAP
 # ============================================================
 
-# ============================================================
-# GIS MAP
-# ============================================================
-
 def show_gis_map():
     st.markdown("## 🗺️ GIS & Farm Map")
     st.caption(
         "Explore registered farms with satellite imagery, "
-        "district boundaries, tehsil boundaries and farm locations."
+        "village/locality labels, district boundaries, "
+        "tehsil boundaries and farm locations."
     )
 
     # =========================================================
     # FILE PATHS
     # =========================================================
+
     district_file = os.path.join(
         "Data",
         "pakistan_district.shp"
@@ -2101,64 +2099,135 @@ def show_gis_map():
         "pakistan_tehsil.shp"
     )
 
+    # Possible village / settlement files.
+    # The first file that exists will be used.
+    village_candidates = [
+        os.path.join("Data", "pakistan_villages.shp"),
+        os.path.join("Data", "pakistan_village.shp"),
+        os.path.join("Data", "pakistan_settlements.shp"),
+        os.path.join("Data", "pakistan_settlement.shp"),
+        os.path.join("Data", "villages.shp"),
+        os.path.join("Data", "village.shp"),
+        os.path.join("Data", "settlements.shp"),
+        os.path.join("Data", "settlement.shp"),
+        os.path.join("Data", "localities.shp"),
+        os.path.join("Data", "locality.shp"),
+        os.path.join("Data", "pakistan_villages.geojson"),
+        os.path.join("Data", "pakistan_settlements.geojson"),
+        os.path.join("Data", "villages.geojson"),
+        os.path.join("Data", "settlements.geojson"),
+        os.path.join("Data", "localities.geojson"),
+    ]
+
+    # =========================================================
+    # HELPER — LOAD GIS FILE
+    # =========================================================
+
+    def load_gis_file(file_path):
+        """
+        Safely load a GIS file and convert it to WGS84.
+        """
+
+        if not os.path.exists(file_path):
+            return None
+
+        try:
+
+            gdf = gpd.read_file(file_path)
+
+            if gdf.empty:
+                return None
+
+            if gdf.crs is not None:
+                gdf = gdf.to_crs(epsg=4326)
+
+            return gdf
+
+        except Exception as e:
+
+            st.warning(
+                f"GIS file could not be loaded: "
+                f"{os.path.basename(file_path)} — {e}"
+            )
+
+            return None
+
     # =========================================================
     # LOAD ADMINISTRATIVE GIS DATA
     # =========================================================
-    districts = None
-    tehsils = None
 
-    # ---------------- DISTRICTS ----------------
-    if os.path.exists(district_file):
-        try:
-            districts = gpd.read_file(district_file)
+    districts = load_gis_file(
+        district_file
+    )
 
-            if districts.crs is not None:
-                districts = districts.to_crs(epsg=4326)
+    tehsils = load_gis_file(
+        tehsil_file
+    )
 
-        except Exception as e:
-            st.warning(
-                f"District GIS file could not be loaded: {e}"
+    # =========================================================
+    # LOAD VILLAGE / SETTLEMENT DATA
+    # =========================================================
+
+    villages = None
+    village_file_used = None
+
+    for candidate in village_candidates:
+
+        if os.path.exists(candidate):
+
+            villages = load_gis_file(
+                candidate
             )
 
-    # ---------------- TEHSILS ----------------
-    if os.path.exists(tehsil_file):
-        try:
-            tehsils = gpd.read_file(tehsil_file)
-
-            if tehsils.crs is not None:
-                tehsils = tehsils.to_crs(epsg=4326)
-
-        except Exception as e:
-            st.warning(
-                f"Tehsil GIS file could not be loaded: {e}"
-            )
+            if villages is not None:
+                village_file_used = candidate
+                break
 
     # =========================================================
     # GET FARMS
     # =========================================================
+
     farms = get_farms()
 
     if not farms:
+
         st.info(
             "No farms have been registered yet. "
             "Add a farm with valid coordinates to see it on the map."
         )
+
         return
 
     # =========================================================
     # VALID FARM COORDINATES
     # =========================================================
+
     valid_farms = []
 
     for farm in farms:
 
         try:
-            lat = float(farm["latitude"])
-            lon = float(farm["longitude"])
 
-            if -90 <= lat <= 90 and -180 <= lon <= 180:
+            lat = float(
+                farm["latitude"]
+            )
+
+            lon = float(
+                farm["longitude"]
+            )
+
+            if (
+                -90 <= lat <= 90
+                and
+                -180 <= lon <= 180
+            ):
+
                 valid_farms.append(
-                    (farm, lat, lon)
+                    (
+                        farm,
+                        lat,
+                        lon
+                    )
                 )
 
         except (
@@ -2166,33 +2235,40 @@ def show_gis_map():
             ValueError,
             KeyError
         ):
+
             continue
 
     if not valid_farms:
+
         st.warning(
             "No farms have valid coordinates. "
             "Please add latitude and longitude to a farm first."
         )
+
         return
 
     # =========================================================
     # DASHBOARD METRICS
     # =========================================================
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+
         st.metric(
             "Registered Farms",
             len(farms)
         )
 
     with col2:
+
         st.metric(
             "Mapped Farms",
             len(valid_farms)
         )
 
     with col3:
+
         district_count = (
             len(districts)
             if districts is not None
@@ -2205,6 +2281,7 @@ def show_gis_map():
         )
 
     with col4:
+
         tehsil_count = (
             len(tehsils)
             if tehsils is not None
@@ -2216,16 +2293,43 @@ def show_gis_map():
             tehsil_count
         )
 
+    # =========================================================
+    # VILLAGE DATA STATUS
+    # =========================================================
+
+    if village_file_used:
+
+        st.success(
+            "🏘️ Village / settlement GIS data loaded: "
+            f"{os.path.basename(village_file_used)}"
+        )
+
+    else:
+
+        st.info(
+            "🏘️ No local village/settlement GIS file was found. "
+            "The Esri place-label overlay will still be available. "
+            "To display additional small villages, add a village "
+            "or settlement GIS dataset inside the Data folder."
+        )
+
     st.markdown("---")
 
     # =========================================================
     # FARM SELECTION
     # =========================================================
-    farm_options = ["All Farms"]
+
+    farm_options = [
+        "All Farms"
+    ]
 
     farm_lookup = {}
 
-    for index, (farm, lat, lon) in enumerate(
+    for index, (
+        farm,
+        lat,
+        lon
+    ) in enumerate(
         valid_farms,
         start=1
     ):
@@ -2241,11 +2345,13 @@ def show_gis_map():
             f"({lat:.5f}, {lon:.5f})"
         )
 
-        farm_options.append(display_name)
-
-        farm_lookup[display_name] = (
-            index - 1
+        farm_options.append(
+            display_name
         )
+
+        farm_lookup[
+            display_name
+        ] = index - 1
 
     selected_farm = st.selectbox(
         "📍 Focus on a farm",
@@ -2254,8 +2360,93 @@ def show_gis_map():
     )
 
     # =========================================================
+    # SELECTED FARM INFORMATION
+    # =========================================================
+
+    if selected_farm != "All Farms":
+
+        selected_index = farm_lookup[
+            selected_farm
+        ]
+
+        selected_farm_data = valid_farms[
+            selected_index
+        ]
+
+        selected_farm_record = (
+            selected_farm_data[0]
+        )
+
+        def selected_value(
+            column,
+            default="N/A"
+        ):
+
+            try:
+
+                if column in selected_farm_record.keys():
+
+                    value = selected_farm_record[
+                        column
+                    ]
+
+                    if value not in (
+                        None,
+                        ""
+                    ):
+
+                        return value
+
+            except Exception:
+                pass
+
+            return default
+
+        selected_farm_name = selected_value(
+            "farm_name",
+            "Unknown Farm"
+        )
+
+        selected_farmer = selected_value(
+            "farmer_name",
+            "Unknown Farmer"
+        )
+
+        selected_province = selected_value(
+            "province"
+        )
+
+        selected_district = selected_value(
+            "district"
+        )
+
+        selected_tehsil = selected_value(
+            "tehsil"
+        )
+
+        selected_place = selected_value(
+            "place_name"
+        )
+
+        selected_lat = selected_farm_data[1]
+        selected_lon = selected_farm_data[2]
+
+        st.markdown(
+            f"""
+            **🌾 Selected Farm:** {selected_farm_name}  
+            **👨‍🌾 Farmer:** {selected_farmer}  
+            **📍 Location:** {selected_province} → "
+            f"{selected_district} → {selected_tehsil} → "
+            f"{selected_place}  
+            **🌐 Coordinates:** "
+            f"{selected_lat:.6f}, {selected_lon:.6f}
+            """
+        )
+
+    # =========================================================
     # MAP CENTER
     # =========================================================
+
     if selected_farm == "All Farms":
 
         center_lat = sum(
@@ -2268,8 +2459,7 @@ def show_gis_map():
             for item in valid_farms
         ) / len(valid_farms)
 
-        # Increased from 10 to 14
-        # This gives a much more detailed initial view.
+        # Good overview of the farms.
         zoom_start = 14
 
     else:
@@ -2285,12 +2475,13 @@ def show_gis_map():
         center_lat = selected_farm_data[1]
         center_lon = selected_farm_data[2]
 
-        # Detailed farm-level view
-        zoom_start = 16
+        # Farm-level detailed view.
+        zoom_start = 18
 
     # =========================================================
     # CREATE MAP
     # =========================================================
+
     m = folium.Map(
         location=[
             center_lat,
@@ -2305,6 +2496,7 @@ def show_gis_map():
     # =========================================================
     # BASE MAP — SATELLITE
     # =========================================================
+
     folium.TileLayer(
         tiles=(
             "https://server.arcgisonline.com/"
@@ -2321,6 +2513,7 @@ def show_gis_map():
     # =========================================================
     # BASE MAP — OPEN STREET MAP
     # =========================================================
+
     folium.TileLayer(
         tiles="OpenStreetMap",
         attr="OpenStreetMap",
@@ -2333,6 +2526,7 @@ def show_gis_map():
     # =========================================================
     # BASE MAP — ESRI STREET
     # =========================================================
+
     folium.TileLayer(
         tiles=(
             "https://server.arcgisonline.com/"
@@ -2349,6 +2543,7 @@ def show_gis_map():
     # =========================================================
     # BASE MAP — TERRAIN
     # =========================================================
+
     folium.TileLayer(
         tiles=(
             "https://server.arcgisonline.com/"
@@ -2363,8 +2558,14 @@ def show_gis_map():
     ).add_to(m)
 
     # =========================================================
-    # ESRI PLACE LABEL OVERLAY
+    # ESRI PLACE / MAP LABEL OVERLAY
     # =========================================================
+    #
+    # This is a transparent reference layer.
+    # It can sit on top of Satellite imagery.
+    #
+    # =========================================================
+
     folium.TileLayer(
         tiles=(
             "https://services.arcgisonline.com/"
@@ -2381,91 +2582,327 @@ def show_gis_map():
     ).add_to(m)
 
     # =========================================================
+    # VILLAGE / LOCALITY LABEL OVERLAY
+    # =========================================================
+    #
+    # If a local village dataset exists, this creates
+    # labels directly from that dataset.
+    #
+    # =========================================================
+
+    if (
+        villages is not None
+        and not villages.empty
+    ):
+
+        village_labels = folium.FeatureGroup(
+            name="🏘️ Village / Locality Labels",
+            show=True,
+            overlay=True
+        )
+
+        # -----------------------------------------------------
+        # FIND VILLAGE NAME COLUMN
+        # -----------------------------------------------------
+
+        village_name_column = None
+
+        possible_village_names = [
+
+            "village",
+            "village_name",
+
+            "VILLAGE",
+            "VILLAGE_NAME",
+
+            "Village",
+            "Village_Name",
+
+            "settlement",
+            "settlement_name",
+
+            "SETTLEMENT",
+            "SETTLEMENT_NAME",
+
+            "Settlement",
+            "Settlement_Name",
+
+            "locality",
+            "locality_name",
+
+            "LOCALITY",
+            "LOCALITY_NAME",
+
+            "Locality",
+            "Locality_Name",
+
+            "name",
+            "Name",
+            "NAME",
+
+            "NAME_4",
+            "NAME_3",
+            "NAME_2"
+        ]
+
+        for column in possible_village_names:
+
+            if column in villages.columns:
+
+                village_name_column = column
+
+                break
+
+        # -----------------------------------------------------
+        # FALLBACK NAME COLUMN
+        # -----------------------------------------------------
+
+        if village_name_column is None:
+
+            non_geometry_columns = [
+
+                column
+
+                for column in villages.columns
+
+                if column != "geometry"
+
+            ]
+
+            if non_geometry_columns:
+
+                village_name_column = (
+                    non_geometry_columns[0]
+                )
+
+        # -----------------------------------------------------
+        # CREATE LABELS
+        # -----------------------------------------------------
+
+        if village_name_column:
+
+            for _, row in villages.iterrows():
+
+                try:
+
+                    geometry = row.geometry
+
+                    if geometry is None:
+                        continue
+
+                    if geometry.is_empty:
+                        continue
+
+                    # Representative point works for
+                    # polygons and also gives a stable
+                    # label location.
+
+                    point = (
+                        geometry.representative_point()
+                    )
+
+                    village_name = str(
+                        row[
+                            village_name_column
+                        ]
+                    )
+
+                    if village_name in (
+                        "",
+                        "None",
+                        "nan"
+                    ):
+                        continue
+
+                    label_html = f"""
+                    <div style="
+                        font-size: 10px;
+                        font-weight: bold;
+                        color: #222222;
+                        background: rgba(
+                            255,255,255,0.78
+                        );
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        white-space: nowrap;
+                        text-align: center;
+                        border: 1px solid
+                            rgba(80,80,80,0.25);
+                        text-shadow:
+                            1px 1px 1px white;
+                    ">
+                        🏘️ {html.escape(village_name)}
+                    </div>
+                    """
+
+                    folium.Marker(
+                        location=[
+                            point.y,
+                            point.x
+                        ],
+                        icon=folium.DivIcon(
+                            html=label_html
+                        ),
+                        tooltip=(
+                            f"Village / Locality: "
+                            f"{html.escape(village_name)}"
+                        )
+                    ).add_to(
+                        village_labels
+                    )
+
+                except Exception:
+
+                    continue
+
+        village_labels.add_to(m)
+
+    # =========================================================
     # DISTRICT BOUNDARIES
     # =========================================================
-    if districts is not None and not districts.empty:
+
+    if (
+        districts is not None
+        and not districts.empty
+    ):
 
         district_layer = folium.FeatureGroup(
             name="🏙️ District Boundaries",
             show=True
         )
 
+        district_fields = [
+
+            column
+
+            for column in districts.columns
+
+            if column != "geometry"
+
+        ]
+
+        district_aliases = [
+
+            column.replace(
+                "_",
+                " "
+            ).title()
+
+            for column in district_fields
+
+        ]
+
         folium.GeoJson(
             districts.to_json(),
+
             name="Districts",
+
             style_function=lambda feature: {
                 "color": "#ff6600",
                 "weight": 2,
                 "fillColor": "#ffcc80",
                 "fillOpacity": 0.08
             },
+
             highlight_function=lambda feature: {
                 "weight": 3,
                 "fillOpacity": 0.18
             },
-            tooltip=folium.GeoJsonTooltip(
-                fields=[
-                    column
-                    for column in districts.columns
-                    if column != "geometry"
-                ],
-                aliases=[
-                    column.replace("_", " ").title()
-                    for column in districts.columns
-                    if column != "geometry"
-                ],
-                localize=True,
-                sticky=False
+
+            tooltip=(
+                folium.GeoJsonTooltip(
+                    fields=district_fields,
+                    aliases=district_aliases,
+                    localize=True,
+                    sticky=False
+                )
+                if district_fields
+                else None
             )
-        ).add_to(district_layer)
+
+        ).add_to(
+            district_layer
+        )
 
         district_layer.add_to(m)
 
     # =========================================================
     # TEHSIL BOUNDARIES
     # =========================================================
-    if tehsils is not None and not tehsils.empty:
+
+    if (
+        tehsils is not None
+        and not tehsils.empty
+    ):
 
         tehsil_layer = folium.FeatureGroup(
             name="🏘️ Tehsil Boundaries",
             show=True
         )
 
+        tehsil_fields = [
+
+            column
+
+            for column in tehsils.columns
+
+            if column != "geometry"
+
+        ]
+
+        tehsil_aliases = [
+
+            column.replace(
+                "_",
+                " "
+            ).title()
+
+            for column in tehsil_fields
+
+        ]
+
         folium.GeoJson(
             tehsils.to_json(),
+
             name="Tehsils",
+
             style_function=lambda feature: {
                 "color": "#0066cc",
                 "weight": 1.5,
                 "fillColor": "#80bfff",
                 "fillOpacity": 0.05
             },
+
             highlight_function=lambda feature: {
                 "weight": 3,
                 "fillOpacity": 0.15
             },
-            tooltip=folium.GeoJsonTooltip(
-                fields=[
-                    column
-                    for column in tehsils.columns
-                    if column != "geometry"
-                ],
-                aliases=[
-                    column.replace("_", " ").title()
-                    for column in tehsils.columns
-                    if column != "geometry"
-                ],
-                localize=True,
-                sticky=False
+
+            tooltip=(
+                folium.GeoJsonTooltip(
+                    fields=tehsil_fields,
+                    aliases=tehsil_aliases,
+                    localize=True,
+                    sticky=False
+                )
+                if tehsil_fields
+                else None
             )
-        ).add_to(tehsil_layer)
+
+        ).add_to(
+            tehsil_layer
+        )
 
         tehsil_layer.add_to(m)
 
     # =========================================================
     # DISTRICT LABELS
     # =========================================================
-    if districts is not None and not districts.empty:
+
+    if (
+        districts is not None
+        and not districts.empty
+    ):
 
         district_labels = folium.FeatureGroup(
             name="🏷️ District Names",
@@ -2475,31 +2912,43 @@ def show_gis_map():
         district_name_column = None
 
         possible_names = [
+
             "district",
             "district_name",
+
             "DISTRICT",
             "District",
+
             "NAME_2",
             "NAME_1",
+
             "name",
-            "Name"
+            "Name",
+            "NAME"
         ]
 
         for column in possible_names:
 
             if column in districts.columns:
+
                 district_name_column = column
+
                 break
 
         if district_name_column is None:
 
             non_geometry_columns = [
+
                 column
+
                 for column in districts.columns
+
                 if column != "geometry"
+
             ]
 
             if non_geometry_columns:
+
                 district_name_column = (
                     non_geometry_columns[0]
                 )
@@ -2510,17 +2959,24 @@ def show_gis_map():
 
                 try:
 
-                    point = row.geometry.representative_point()
+                    point = (
+                        row.geometry
+                        .representative_point()
+                    )
 
                     district_name = str(
-                        row[district_name_column]
+                        row[
+                            district_name_column
+                        ]
                     )
 
                     folium.Marker(
+
                         location=[
                             point.y,
                             point.x
                         ],
+
                         icon=folium.DivIcon(
                             html=f"""
                             <div style="
@@ -2533,13 +2989,19 @@ def show_gis_map():
                                     1px 1px 2px white,
                                     -1px -1px 2px white;
                             ">
-                                {html.escape(district_name)}
+                                {html.escape(
+                                    district_name
+                                )}
                             </div>
                             """
                         )
-                    ).add_to(district_labels)
+
+                    ).add_to(
+                        district_labels
+                    )
 
                 except Exception:
+
                     continue
 
         district_labels.add_to(m)
@@ -2547,7 +3009,11 @@ def show_gis_map():
     # =========================================================
     # TEHSIL LABELS
     # =========================================================
-    if tehsils is not None and not tehsils.empty:
+
+    if (
+        tehsils is not None
+        and not tehsils.empty
+    ):
 
         tehsil_labels = folium.FeatureGroup(
             name="🏷️ Tehsil Names",
@@ -2557,31 +3023,43 @@ def show_gis_map():
         tehsil_name_column = None
 
         possible_names = [
+
             "tehsil",
             "tehsil_name",
+
             "TEHSIL",
             "Tehsil",
+
             "NAME_3",
             "NAME_2",
+
             "name",
-            "Name"
+            "Name",
+            "NAME"
         ]
 
         for column in possible_names:
 
             if column in tehsils.columns:
+
                 tehsil_name_column = column
+
                 break
 
         if tehsil_name_column is None:
 
             non_geometry_columns = [
+
                 column
+
                 for column in tehsils.columns
+
                 if column != "geometry"
+
             ]
 
             if non_geometry_columns:
+
                 tehsil_name_column = (
                     non_geometry_columns[0]
                 )
@@ -2592,17 +3070,24 @@ def show_gis_map():
 
                 try:
 
-                    point = row.geometry.representative_point()
+                    point = (
+                        row.geometry
+                        .representative_point()
+                    )
 
                     tehsil_name = str(
-                        row[tehsil_name_column]
+                        row[
+                            tehsil_name_column
+                        ]
                     )
 
                     folium.Marker(
+
                         location=[
                             point.y,
                             point.x
                         ],
+
                         icon=folium.DivIcon(
                             html=f"""
                             <div style="
@@ -2615,13 +3100,19 @@ def show_gis_map():
                                     1px 1px 2px white,
                                     -1px -1px 2px white;
                             ">
-                                {html.escape(tehsil_name)}
+                                {html.escape(
+                                    tehsil_name
+                                )}
                             </div>
                             """
                         )
-                    ).add_to(tehsil_labels)
+
+                    ).add_to(
+                        tehsil_labels
+                    )
 
                 except Exception:
+
                     continue
 
         tehsil_labels.add_to(m)
@@ -2629,6 +3120,7 @@ def show_gis_map():
     # =========================================================
     # FARM MARKERS
     # =========================================================
+
     farm_layer = folium.FeatureGroup(
         name="🌾 Registered Farms",
         show=True
@@ -2636,7 +3128,43 @@ def show_gis_map():
 
     farm_bounds = []
 
-    for index, (farm, lat, lon) in enumerate(
+    # ---------------------------------------------------------
+    # OPTIONAL HELPER
+    # ---------------------------------------------------------
+
+    def get_optional(
+        row,
+        column,
+        default="N/A"
+    ):
+
+        try:
+
+            if column in row.keys():
+
+                value = row[column]
+
+                if value not in (
+                    None,
+                    ""
+                ):
+
+                    return value
+
+        except Exception:
+            pass
+
+        return default
+
+    # ---------------------------------------------------------
+    # FARM LOOP
+    # ---------------------------------------------------------
+
+    for index, (
+        farm,
+        lat,
+        lon
+    ) in enumerate(
         valid_farms,
         start=1
     ):
@@ -2648,46 +3176,17 @@ def show_gis_map():
 
         farm_id = f"F-{index:03d}"
 
-        try:
-            farm_name = str(
-                farm["farm_name"]
-            )
-        except Exception:
-            farm_name = farm_id
+        farm_name = get_optional(
+            farm,
+            "farm_name",
+            farm_id
+        )
 
-        try:
-
-            farmer_name = (
-                farm["farmer_name"]
-                if "farmer_name" in farm.keys()
-                else "Unknown"
-            )
-
-        except Exception:
-            farmer_name = "Unknown"
-
-        def get_optional(
-            row,
-            column,
-            default="N/A"
-        ):
-
-            try:
-
-                if column in row.keys():
-
-                    value = row[column]
-
-                    if value not in (
-                        None,
-                        ""
-                    ):
-                        return value
-
-            except Exception:
-                pass
-
-            return default
+        farmer_name = get_optional(
+            farm,
+            "farmer_name",
+            "Unknown"
+        )
 
         area = get_optional(
             farm,
@@ -2724,6 +3223,10 @@ def show_gis_map():
             "place_name"
         )
 
+        # -----------------------------------------------------
+        # POPUP
+        # -----------------------------------------------------
+
         popup_html = f"""
         <div style="
             width: 300px;
@@ -2735,41 +3238,61 @@ def show_gis_map():
                 margin-bottom: 5px;
                 color: #1b5e20;
             ">
-                🌾 {html.escape(farm_id)}
+                🌾 {html.escape(
+                    str(farm_id)
+                )}
             </h3>
 
             <h4 style="
                 margin-top: 0;
                 margin-bottom: 10px;
             ">
-                {html.escape(farm_name)}
+                {html.escape(
+                    str(farm_name)
+                )}
             </h4>
 
             <b>👨‍🌾 Farmer:</b>
-            {html.escape(str(farmer_name))}<br>
+            {html.escape(
+                str(farmer_name)
+            )}<br>
 
             <b>📐 Area:</b>
-            {html.escape(str(area))} acres<br>
+            {html.escape(
+                str(area)
+            )} acres<br>
 
             <b>💧 Irrigation:</b>
-            {html.escape(str(irrigation))}<br>
+            {html.escape(
+                str(irrigation)
+            )}<br>
 
             <b>🌱 Soil:</b>
-            {html.escape(str(soil))}<br>
+            {html.escape(
+                str(soil)
+            )}<br>
 
             <hr>
 
             <b>📍 Province:</b>
-            {html.escape(str(province))}<br>
+            {html.escape(
+                str(province)
+            )}<br>
 
             <b>🏙️ District:</b>
-            {html.escape(str(district))}<br>
+            {html.escape(
+                str(district)
+            )}<br>
 
             <b>🏘️ Tehsil:</b>
-            {html.escape(str(tehsil))}<br>
+            {html.escape(
+                str(tehsil)
+            )}<br>
 
             <b>📌 Place:</b>
-            {html.escape(str(place_name))}<br>
+            {html.escape(
+                str(place_name)
+            )}<br>
 
             <hr>
 
@@ -2782,9 +3305,14 @@ def show_gis_map():
         </div>
         """
 
+        # -----------------------------------------------------
+        # SELECTED FARM STYLE
+        # -----------------------------------------------------
+
         is_selected = (
             selected_farm != "All Farms"
-            and farm_lookup.get(
+            and
+            farm_lookup.get(
                 selected_farm
             ) == index - 1
         )
@@ -2792,12 +3320,10 @@ def show_gis_map():
         if is_selected:
 
             marker_color = "#ff0000"
-            marker_size = 36
 
         else:
 
             marker_color = "#1b8f3a"
-            marker_size = 32
 
         marker_html = f"""
         <div style="
@@ -2808,51 +3334,64 @@ def show_gis_map():
             padding: 4px 7px;
             font-size: 11px;
             font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            box-shadow:
+                0 2px 5px
+                rgba(0,0,0,0.4);
             white-space: nowrap;
         ">
-            🌾 {farm_id}
+            🌾 {html.escape(
+                str(farm_id)
+            )}
         </div>
         """
 
         folium.Marker(
+
             location=[
                 lat,
                 lon
             ],
+
             tooltip=(
                 f"🌾 {farm_id} — "
-                f"{farm_name}"
+                f"{html.escape(
+                    str(farm_name)
+                )}"
             ),
+
             popup=folium.Popup(
                 popup_html,
                 max_width=350
             ),
+
             icon=folium.DivIcon(
                 html=marker_html,
                 icon_size=(
-                    marker_size,
+                    50,
                     32
                 ),
                 icon_anchor=(
-                    marker_size // 2,
+                    25,
                     16
                 )
             )
-        ).add_to(farm_layer)
+
+        ).add_to(
+            farm_layer
+        )
 
     farm_layer.add_to(m)
 
     # =========================================================
     # FARM MAP FITTING
     # =========================================================
+
     if (
         selected_farm == "All Farms"
-        and len(farm_bounds) > 1
+        and
+        len(farm_bounds) > 1
     ):
 
-        # Increased from max_zoom=14 to max_zoom=16
-        # so the map can zoom further into the farms.
         m.fit_bounds(
             farm_bounds,
             max_zoom=16
@@ -2861,6 +3400,7 @@ def show_gis_map():
     # =========================================================
     # MAP CONTROLS
     # =========================================================
+
     folium.LayerControl(
         position="topright",
         collapsed=False
@@ -2869,6 +3409,7 @@ def show_gis_map():
     # =========================================================
     # FULLSCREEN
     # =========================================================
+
     try:
 
         from folium.plugins import Fullscreen
@@ -2881,11 +3422,13 @@ def show_gis_map():
         ).add_to(m)
 
     except Exception:
+
         pass
 
     # =========================================================
     # MOUSE COORDINATES
     # =========================================================
+
     try:
 
         from folium.plugins import MousePosition
@@ -2898,12 +3441,16 @@ def show_gis_map():
         ).add_to(m)
 
     except Exception:
+
         pass
 
     # =========================================================
     # MAP
     # =========================================================
-    st.markdown("### 📍 Farm Locations")
+
+    st.markdown(
+        "### 📍 Farm Locations"
+    )
 
     st_folium(
         m,
@@ -2915,39 +3462,90 @@ def show_gis_map():
     # =========================================================
     # FARM REFERENCE TABLE
     # =========================================================
-    st.markdown("### 🌾 Mapped Farm Reference")
+
+    st.markdown(
+        "### 🌾 Mapped Farm Reference"
+    )
 
     farm_table = []
 
-    for index, (farm, lat, lon) in enumerate(
+    for index, (
+        farm,
+        lat,
+        lon
+    ) in enumerate(
         valid_farms,
         start=1
     ):
 
         farm_id = f"F-{index:03d}"
 
-        try:
-            farm_name = farm["farm_name"]
-        except Exception:
-            farm_name = "Unknown"
+        farm_name = get_optional(
+            farm,
+            "farm_name",
+            "Unknown"
+        )
 
-        try:
+        farmer_name = get_optional(
+            farm,
+            "farmer_name",
+            "Unknown"
+        )
 
-            farmer_name = (
-                farm["farmer_name"]
-                if "farmer_name" in farm.keys()
-                else "Unknown"
-            )
+        province = get_optional(
+            farm,
+            "province"
+        )
 
-        except Exception:
-            farmer_name = "Unknown"
+        district = get_optional(
+            farm,
+            "district"
+        )
+
+        tehsil = get_optional(
+            farm,
+            "tehsil"
+        )
+
+        place_name = get_optional(
+            farm,
+            "place_name"
+        )
 
         farm_table.append({
-            "Farm ID": farm_id,
-            "Farm Name": farm_name,
-            "Farmer": farmer_name,
-            "Latitude": round(lat, 6),
-            "Longitude": round(lon, 6)
+
+            "Farm ID":
+                farm_id,
+
+            "Farm Name":
+                farm_name,
+
+            "Farmer":
+                farmer_name,
+
+            "Province":
+                province,
+
+            "District":
+                district,
+
+            "Tehsil":
+                tehsil,
+
+            "Place":
+                place_name,
+
+            "Latitude":
+                round(
+                    lat,
+                    6
+                ),
+
+            "Longitude":
+                round(
+                    lon,
+                    6
+                )
         })
 
     st.dataframe(
