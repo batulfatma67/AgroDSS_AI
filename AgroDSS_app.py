@@ -1,7 +1,7 @@
 from pathlib import Path
+from textwrap import dedent
 
 import streamlit as st
-from textwrap import dedent
 
 
 # ============================================================
@@ -28,48 +28,71 @@ DEFAULT_STATE = {
     "selected_page": "Dashboard",
 }
 
-
 for key, value in DEFAULT_STATE.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
 
 # ============================================================
-# CUSTOM CSS
+# HELPER FUNCTIONS
 # ============================================================
 
-def load_css():
+def render_html(content: str):
     """
-    Load the existing CSS file.
+    Safely render custom HTML after removing Python indentation.
 
-    The existing application already has a CSS system,
-    so we reuse it instead of creating another stylesheet.
+    This prevents Streamlit from interpreting indented HTML
+    as a Markdown code block.
+    """
+    st.markdown(
+        dedent(content),
+        unsafe_allow_html=True,
+    )
+
+
+def load_existing_css():
+    """
+    Load the existing project CSS if it exists.
+
+    We keep the existing CSS system so the old project
+    structure remains usable.
     """
 
     css_path = Path("styles/main.css")
 
     if css_path.exists():
-        css = css_path.read_text(encoding="utf-8")
-        st.markdown(
-            f"<style>{css}</style>",
-            unsafe_allow_html=True,
-        )
+        try:
+            css = css_path.read_text(encoding="utf-8")
+
+            st.markdown(
+                f"<style>{css}</style>",
+                unsafe_allow_html=True,
+            )
+
+        except Exception:
+            # Do not allow an optional CSS problem
+            # to crash the complete application.
+            pass
 
 
-load_css()
+# ============================================================
+# LOAD EXISTING CSS
+# ============================================================
+
+load_existing_css()
 
 
 # ============================================================
 # NEW APPLICATION STYLING
 # ============================================================
 
-st.markdown(
+render_html(
     """
     <style>
 
-    /* --------------------------------------------------------
-       MAIN CONTENT
-       -------------------------------------------------------- */
+    /* ========================================================
+       GLOBAL
+       ======================================================== */
 
     .main-header {
         padding: 10px 0 5px 0;
@@ -80,19 +103,21 @@ st.markdown(
         font-weight: 800;
         color: #14532d;
         margin-bottom: 0;
+        line-height: 1.2;
     }
 
     .main-subtitle {
         font-size: 16px;
         color: #64748b;
-        margin-top: 4px;
+        margin-top: 8px;
         margin-bottom: 25px;
+        line-height: 1.6;
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        HERO CARD
-       -------------------------------------------------------- */
+       ======================================================== */
 
     .hero-card {
         background:
@@ -115,20 +140,21 @@ st.markdown(
     .hero-title {
         font-size: 30px;
         font-weight: 800;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
+        line-height: 1.3;
     }
 
     .hero-text {
         font-size: 16px;
-        line-height: 1.6;
+        line-height: 1.7;
         color: #ecfdf5;
-        max-width: 850px;
+        max-width: 900px;
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        FEATURE CARDS
-       -------------------------------------------------------- */
+       ======================================================== */
 
     .feature-card {
         background: white;
@@ -137,34 +163,45 @@ st.markdown(
 
         padding: 22px;
 
-        min-height: 150px;
+        min-height: 160px;
 
         box-shadow:
             0 4px 15px rgba(15, 23, 42, 0.05);
+
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-3px);
+
+        box-shadow:
+            0 8px 24px rgba(15, 23, 42, 0.10);
     }
 
     .feature-icon {
         font-size: 30px;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
 
     .feature-title {
         font-size: 18px;
         font-weight: 750;
         color: #14532d;
-        margin-bottom: 5px;
+        margin-bottom: 7px;
     }
 
     .feature-description {
         font-size: 14px;
         color: #64748b;
-        line-height: 1.5;
+        line-height: 1.6;
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        STATUS CARD
-       -------------------------------------------------------- */
+       ======================================================== */
 
     .status-card {
         background: #f0fdf4;
@@ -174,23 +211,26 @@ st.markdown(
         padding: 18px;
 
         margin-top: 20px;
+        margin-bottom: 25px;
     }
 
     .status-title {
         font-weight: 750;
         color: #166534;
         margin-bottom: 5px;
+        font-size: 15px;
     }
 
     .status-text {
         color: #475569;
         font-size: 14px;
+        line-height: 1.5;
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        SIDEBAR BRAND
-       -------------------------------------------------------- */
+       ======================================================== */
 
     .app-brand {
         text-align: center;
@@ -211,25 +251,52 @@ st.markdown(
     .app-brand-subtitle {
         color: #dcfce7;
         font-size: 12px;
-        line-height: 1.4;
-        margin-top: 5px;
+        line-height: 1.5;
+        margin-top: 6px;
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
+       SIDEBAR INFORMATION
+       ======================================================== */
+
+    .sidebar-info {
+        color: #dcfce7;
+        font-size: 12px;
+        line-height: 1.8;
+    }
+
+    .sidebar-info-title {
+        color: white;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+
+    /* ========================================================
        FOOTER
-       -------------------------------------------------------- */
+       ======================================================== */
 
     .app-footer {
         text-align: center;
         color: #94a3b8;
         font-size: 12px;
-        padding: 30px 0 10px 0;
+        padding: 35px 0 10px 0;
+        line-height: 1.6;
+    }
+
+
+    /* ========================================================
+       STREAMLIT BUTTON IMPROVEMENT
+       ======================================================== */
+
+    div.stButton > button {
+        border-radius: 10px;
+        font-weight: 600;
     }
 
     </style>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
@@ -239,8 +306,11 @@ st.markdown(
 
 with st.sidebar:
 
-    st.markdown(
-        dedent(
+    # --------------------------------------------------------
+    # BRAND
+    # --------------------------------------------------------
+
+    render_html(
         """
         <div class="app-brand">
 
@@ -259,15 +329,15 @@ with st.sidebar:
 
         </div>
         """
-        ),
-        unsafe_allow_html=True,
     )
 
     st.divider()
 
-    st.markdown(
-        "### 🌐 Navigation"
-    )
+    # --------------------------------------------------------
+    # NAVIGATION
+    # --------------------------------------------------------
+
+    st.markdown("### 🌐 Navigation")
 
     page = st.radio(
         "Application",
@@ -286,23 +356,26 @@ with st.sidebar:
 
     st.divider()
 
-    st.markdown(
-        """
-        <div style="
-            color:#dcfce7;
-            font-size:12px;
-            line-height:1.6;
-        ">
+    # --------------------------------------------------------
+    # SIDEBAR INFORMATION
+    # --------------------------------------------------------
 
-        <b>AgriDSS AI</b><br>
-        Precision Agriculture<br>
-        GIS & Remote Sensing<br>
-        Weather Intelligence<br>
-        AI & Generative AI
+    render_html(
+        """
+        <div class="sidebar-info">
+
+            <div class="sidebar-info-title">
+                AgriDSS AI
+            </div>
+
+            Precision Agriculture<br>
+            GIS & Remote Sensing<br>
+            Weather Intelligence<br>
+            Water Management<br>
+            AI & Generative AI
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -312,7 +385,11 @@ with st.sidebar:
 
 def render_dashboard():
 
-    st.markdown(
+    # --------------------------------------------------------
+    # HEADER
+    # --------------------------------------------------------
+
+    render_html(
         """
         <div class="main-header">
 
@@ -326,8 +403,7 @@ def render_dashboard():
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -335,7 +411,7 @@ def render_dashboard():
     # HERO
     # --------------------------------------------------------
 
-    st.markdown(
+    render_html(
         """
         <div class="hero-card">
 
@@ -351,8 +427,7 @@ def render_dashboard():
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -364,10 +439,17 @@ def render_dashboard():
 
     if farm:
 
-        crop = farm.get("crop", "Not specified")
-        district = farm.get("district", "Not identified")
+        crop = farm.get(
+            "crop",
+            "Not specified"
+        )
 
-        st.markdown(
+        district = farm.get(
+            "district",
+            "Not identified"
+        )
+
+        render_html(
             f"""
             <div class="status-card">
 
@@ -376,19 +458,20 @@ def render_dashboard():
                 </div>
 
                 <div class="status-text">
-                    Current crop: <b>{crop}</b>
+                    Current crop:
+                    <b>{crop}</b>
                     &nbsp; | &nbsp;
-                    Location: <b>{district}</b>
+                    Location:
+                    <b>{district}</b>
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     else:
 
-        st.markdown(
+        render_html(
             """
             <div class="status-card">
 
@@ -402,24 +485,25 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
 
     # --------------------------------------------------------
-    # FEATURES
+    # INTELLIGENCE MODULES
     # --------------------------------------------------------
 
-    st.markdown(
-        "### 🧠 Intelligence Modules"
-    )
+    st.markdown("### 🧠 Intelligence Modules")
+
+    # --------------------------------------------------------
+    # ROW 1
+    # --------------------------------------------------------
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -437,13 +521,12 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     with col2:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -461,13 +544,12 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     with col3:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -485,18 +567,22 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
 
     st.write("")
 
+
+    # --------------------------------------------------------
+    # ROW 2
+    # --------------------------------------------------------
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -514,13 +600,12 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     with col2:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -538,13 +623,12 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     with col3:
 
-        st.markdown(
+        render_html(
             """
             <div class="feature-card">
 
@@ -562,8 +646,7 @@ def render_dashboard():
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
 
@@ -571,9 +654,13 @@ def render_dashboard():
 # PLACEHOLDER PAGES
 # ============================================================
 
-def render_placeholder(title, icon, description):
+def render_placeholder(
+    title: str,
+    icon: str,
+    description: str,
+):
 
-    st.markdown(
+    render_html(
         f"""
         <div class="main-header">
 
@@ -586,8 +673,7 @@ def render_placeholder(title, icon, description):
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     st.info(
@@ -604,6 +690,7 @@ if page == "Dashboard":
 
     render_dashboard()
 
+
 elif page == "Farm Intelligence":
 
     render_placeholder(
@@ -611,6 +698,7 @@ elif page == "Farm Intelligence":
         "👨‍🌾",
         "Farm profiles, field information and agricultural data.",
     )
+
 
 elif page == "AI Agronomist":
 
@@ -620,6 +708,7 @@ elif page == "AI Agronomist":
         "Generative AI assistance for agricultural questions.",
     )
 
+
 elif page == "Satellite Intelligence":
 
     render_placeholder(
@@ -628,6 +717,7 @@ elif page == "Satellite Intelligence":
         "Satellite imagery, NDVI and vegetation intelligence.",
     )
 
+
 elif page == "Water Management":
 
     render_placeholder(
@@ -635,6 +725,7 @@ elif page == "Water Management":
         "💧",
         "Agricultural water requirement and irrigation intelligence.",
     )
+
 
 elif page == "Reports":
 
@@ -649,7 +740,7 @@ elif page == "Reports":
 # FOOTER
 # ============================================================
 
-st.markdown(
+render_html(
     """
     <div class="app-footer">
 
@@ -657,6 +748,5 @@ st.markdown(
         GIS · Remote Sensing · Weather · Water · AI
 
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
