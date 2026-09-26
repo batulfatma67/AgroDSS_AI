@@ -486,7 +486,6 @@ def location_selector(
 # DASHBOARD
 # ============================================================
 
-```python
 def show_dashboard():
 
     stats = get_dashboard_statistics()
