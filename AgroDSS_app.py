@@ -486,6 +486,292 @@ def location_selector(
 # DASHBOARD
 # ============================================================
 
+def show_dashboard():
+
+    stats = get_dashboard_statistics()
+
+    # ============================================================
+    # HEADER
+    # ============================================================
+
+    st.title("🌾 AgroDSS AI")
+
+    st.caption(
+        "AI-Powered Agricultural Decision Support System"
+    )
+
+    st.write(
+        "An integrated platform for farm management, GIS, "
+        "satellite intelligence, weather analysis, irrigation "
+        "decision support, and AI-assisted agricultural insights."
+    )
+
+    st.divider()
+
+    # ============================================================
+    # FARM OVERVIEW
+    # ============================================================
+
+    st.subheader("📊 Farm Overview")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            label="👨‍🌾 Farmers",
+            value=stats["farmers"]
+        )
+
+    with col2:
+        st.metric(
+            label="🏡 Farms",
+            value=stats["farms"]
+        )
+
+    with col3:
+        st.metric(
+            label="🌱 Fields",
+            value=stats["fields"]
+        )
+
+    with col4:
+        st.metric(
+            label="🌾 Active Crops",
+            value=stats["crops"]
+        )
+
+    st.divider()
+
+    # ============================================================
+    # AGRICULTURAL INTELLIGENCE
+    # ============================================================
+
+    st.subheader("🧠 Agricultural Intelligence")
+
+    st.caption(
+        "Access the major intelligence modules of AgroDSS AI."
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        with st.container(border=True):
+
+            st.markdown("### 👨‍🌾 Farmer & Farm")
+
+            st.write(
+                "Manage farmers, farms, fields, crops "
+                "and farm locations."
+            )
+
+            if st.button(
+                "Open Farmer Management →",
+                key="dashboard_farmer",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "Farmer & Farm"
+                st.rerun()
+
+    with col2:
+
+        with st.container(border=True):
+
+            st.markdown("### 🛰️ Satellite Intelligence")
+
+            st.write(
+                "Analyze satellite imagery, vegetation "
+                "indices and agricultural conditions."
+            )
+
+            if st.button(
+                "Open Satellite →",
+                key="dashboard_satellite",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "Satellite Intelligence"
+                st.rerun()
+
+    with col3:
+
+        with st.container(border=True):
+
+            st.markdown("### 🌦️ Weather Intelligence")
+
+            st.write(
+                "Explore weather information and forecasts "
+                "for agricultural decision-making."
+            )
+
+            if st.button(
+                "Open Weather →",
+                key="dashboard_weather",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "Weather Intelligence"
+                st.rerun()
+
+    # ------------------------------------------------------------
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        with st.container(border=True):
+
+            st.markdown("### 💧 Water & Irrigation")
+
+            st.write(
+                "Analyze crop water requirements and "
+                "irrigation decisions."
+            )
+
+            if st.button(
+                "Open Water Analysis →",
+                key="dashboard_water",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "Water & Irrigation"
+                st.rerun()
+
+    with col2:
+
+        with st.container(border=True):
+
+            st.markdown("### 🤖 AI Agronomist")
+
+            st.write(
+                "Get AI-assisted agricultural information "
+                "and recommendations."
+            )
+
+            if st.button(
+                "Open AI Agronomist →",
+                key="dashboard_ai",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "AI Agronomist"
+                st.rerun()
+
+    with col3:
+
+        with st.container(border=True):
+
+            st.markdown("### 📚 Knowledge Base")
+
+            st.write(
+                "Search agricultural knowledge and "
+                "reference information."
+            )
+
+            if st.button(
+                "Open Knowledge Base →",
+                key="dashboard_knowledge",
+                use_container_width=True
+            ):
+                st.session_state.current_page = "Knowledge Base"
+                st.rerun()
+
+    st.divider()
+
+    # ============================================================
+    # QUICK ACTIONS
+    # ============================================================
+
+    st.subheader("⚡ Quick Actions")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+
+        if st.button(
+            "➕ Add Farmer",
+            key="quick_add_farmer",
+            use_container_width=True
+        ):
+            st.session_state.current_page = "Farmer & Farm"
+            st.rerun()
+
+    with col2:
+
+        if st.button(
+            "🗺️ Farm Map",
+            key="quick_farm_map",
+            use_container_width=True
+        ):
+            st.session_state.current_page = "GIS & Farm Map"
+            st.rerun()
+
+    with col3:
+
+        if st.button(
+            "🛰️ Satellite",
+            key="quick_satellite",
+            use_container_width=True
+        ):
+            st.session_state.current_page = "Satellite Intelligence"
+            st.rerun()
+
+    with col4:
+
+        if st.button(
+            "🤖 AI Agronomist",
+            key="quick_ai",
+            use_container_width=True
+        ):
+            st.session_state.current_page = "AI Agronomist"
+            st.rerun()
+
+    st.divider()
+
+    # ============================================================
+    # CURRENT SYSTEM SUMMARY
+    # ============================================================
+
+    st.subheader("📌 Current System Summary")
+
+    summary_col1, summary_col2 = st.columns(2)
+
+    with summary_col1:
+
+        st.info(
+            f"""
+            **🌱 Farm Database**
+
+            AgroDSS AI currently contains:
+
+            • **{stats["farmers"]}** registered farmer(s)
+
+            • **{stats["farms"]}** registered farm(s)
+
+            • **{stats["fields"]}** managed field(s)
+            """
+        )
+
+    with summary_col2:
+
+        st.success(
+            f"""
+            **🌾 Crop Information**
+
+            The system currently contains:
+
+            • **{stats["crops"]}** active crop record(s)
+
+            These records can be used by the agricultural
+            intelligence modules for further analysis.
+            """
+        )
+
+    # ============================================================
+    # FOOTER
+    # ============================================================
+
+    st.divider()
+
+    st.caption(
+        "AgroDSS AI • Integrated Agricultural Decision Support System"
+    )
 
 # ============================================================
 # FARMER MANAGEMENT
