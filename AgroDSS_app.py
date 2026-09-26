@@ -2075,8 +2075,14 @@ def show_farmer_farm():
 
 def show_gis_map():
     st.markdown("## 🗺️ GIS & Farm Map")
-    st.caption("Explore registered farms and fields using satellite, street, and terrain basemaps.")
+    st.caption(
+        "Explore registered farms using satellite imagery, street maps, "
+        "terrain, and place labels."
+    )
 
+    # ---------------------------------------------------------
+    # GET FARMS
+    # ---------------------------------------------------------
     farms = get_farms()
 
     if not farms:
@@ -2084,7 +2090,7 @@ def show_gis_map():
         return
 
     # ---------------------------------------------------------
-    # Find valid farm coordinates
+    # VALID FARM COORDINATES
     # ---------------------------------------------------------
     valid_farms = []
 
@@ -2095,18 +2101,19 @@ def show_gis_map():
 
             if -90 <= lat <= 90 and -180 <= lon <= 180:
                 valid_farms.append((farm, lat, lon))
-        except (TypeError, ValueError):
+
+        except (TypeError, ValueError, KeyError):
             continue
 
     if not valid_farms:
         st.warning(
-            "No farms have valid coordinates yet. "
-            "Add latitude and longitude to a farm first."
+            "No farms have valid coordinates. "
+            "Please add latitude and longitude to a farm first."
         )
         return
 
     # ---------------------------------------------------------
-    # Map controls
+    # DASHBOARD METRICS
     # ---------------------------------------------------------
     col1, col2, col3 = st.columns(3)
 
@@ -2117,40 +2124,66 @@ def show_gis_map():
         st.metric("Mapped Farms", len(valid_farms))
 
     with col3:
-        st.metric("Map Layers", "3")
+        st.metric("Map Layers", "5")
 
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # Calculate map center
+    # FARM SELECTION
     # ---------------------------------------------------------
-    center_lat = sum(item[1] for item in valid_farms) / len(valid_farms)
-    center_lon = sum(item[2] for item in valid_farms) / len(valid_farms)
+    farm_options = ["All Farms"]
+
+    for farm, lat, lon in valid_farms:
+        farm_name = farm["farm_name"]
+        farm_options.append(
+            f"{farm_name} ({lat:.5f}, {lon:.5f})"
+        )
+
+    selected_farm = st.selectbox(
+        "📍 Focus on a farm",
+        farm_options,
+        index=0
+    )
 
     # ---------------------------------------------------------
-    # Create base map
+    # MAP CENTER
+    # ---------------------------------------------------------
+    if selected_farm == "All Farms":
+
+        center_lat = sum(
+            item[1] for item in valid_farms
+        ) / len(valid_farms)
+
+        center_lon = sum(
+            item[2] for item in valid_farms
+        ) / len(valid_farms)
+
+        zoom_start = 11
+
+    else:
+
+        selected_index = farm_options.index(selected_farm) - 1
+
+        selected_farm_data = valid_farms[selected_index]
+
+        center_lat = selected_farm_data[1]
+        center_lon = selected_farm_data[2]
+
+        zoom_start = 16
+
+    # ---------------------------------------------------------
+    # CREATE MAP
     # ---------------------------------------------------------
     m = folium.Map(
         location=[center_lat, center_lon],
-        zoom_start=12,
+        zoom_start=zoom_start,
         control_scale=True,
         zoom_control=True,
         tiles=None
     )
 
     # ---------------------------------------------------------
-    # 1. OpenStreetMap
-    # ---------------------------------------------------------
-    folium.TileLayer(
-        tiles="OpenStreetMap",
-        name="🗺️ Street Map",
-        overlay=False,
-        control=True,
-        show=False
-    ).add_to(m)
-
-    # ---------------------------------------------------------
-    # 2. Esri World Imagery
+    # BASE MAP 1 — SATELLITE
     # ---------------------------------------------------------
     folium.TileLayer(
         tiles=(
@@ -2165,11 +2198,41 @@ def show_gis_map():
     ).add_to(m)
 
     # ---------------------------------------------------------
-    # 3. OpenTopoMap
+    # BASE MAP 2 — OPEN STREET MAP
     # ---------------------------------------------------------
     folium.TileLayer(
-        tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-        attr="OpenTopoMap",
+        tiles="OpenStreetMap",
+        attr="OpenStreetMap",
+        name="🗺️ Street Map",
+        overlay=False,
+        control=True,
+        show=False
+    ).add_to(m)
+
+    # ---------------------------------------------------------
+    # BASE MAP 3 — ESRI STREET
+    # ---------------------------------------------------------
+    folium.TileLayer(
+        tiles=(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/"
+            "World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+        ),
+        attr="Esri World Street Map",
+        name="🚗 Detailed Street",
+        overlay=False,
+        control=True,
+        show=False
+    ).add_to(m)
+
+    # ---------------------------------------------------------
+    # BASE MAP 4 — TERRAIN
+    # ---------------------------------------------------------
+    folium.TileLayer(
+        tiles=(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/"
+            "World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+        ),
+        attr="Esri World Topographic Map",
         name="⛰️ Terrain",
         overlay=False,
         control=True,
@@ -2177,108 +2240,148 @@ def show_gis_map():
     ).add_to(m)
 
     # ---------------------------------------------------------
-    # Farm marker layer
+    # PLACE / VILLAGE LABELS
+    # ---------------------------------------------------------
+    # This is an overlay, so it can remain visible over
+    # satellite imagery.
+    folium.TileLayer(
+        tiles=(
+            "https://services.arcgisonline.com/ArcGIS/rest/services/"
+            "Reference/World_Boundaries_and_Places/MapServer/tile/"
+            "{z}/{y}/{x}"
+        ),
+        attr="Esri World Boundaries and Places",
+        name="🏘️ Village / Place Labels",
+        overlay=True,
+        control=True,
+        show=True,
+        opacity=1.0
+    ).add_to(m)
+
+    # ---------------------------------------------------------
+    # FARM MARKERS
     # ---------------------------------------------------------
     farm_layer = folium.FeatureGroup(
-        name="🌾 Farms",
+        name="🌾 Registered Farms",
         show=True
     )
 
-    # ---------------------------------------------------------
-    # Field marker layer
-    # ---------------------------------------------------------
-    field_layer = folium.FeatureGroup(
-        name="🌱 Fields",
-        show=True
-    )
+    bounds = []
 
-    # ---------------------------------------------------------
-    # Add farms
-    # ---------------------------------------------------------
     for farm, lat, lon in valid_farms:
 
-        farmer_name = farm["farmer_name"] if "farmer_name" in farm.keys() else "Unknown"
+        bounds.append([lat, lon])
+
+        # Safe extraction
+        try:
+            farmer_name = (
+                farm["farmer_name"]
+                if "farmer_name" in farm.keys()
+                else "Unknown"
+            )
+        except Exception:
+            farmer_name = "Unknown"
 
         farm_name = farm["farm_name"]
 
-        area = farm["area_acres"]
+        try:
+            area = farm["area_acres"]
+        except Exception:
+            area = "N/A"
 
-        irrigation = farm["irrigation_system"]
+        try:
+            irrigation = farm["irrigation_system"]
+        except Exception:
+            irrigation = "N/A"
 
-        soil = farm["soil_type"]
+        try:
+            soil = farm["soil_type"]
+        except Exception:
+            soil = "N/A"
+
+        # Optional location information.
+        # These will work if/when you add these columns later.
+        def get_optional(row, column, default="N/A"):
+            try:
+                if column in row.keys():
+                    value = row[column]
+                    return value if value not in (None, "") else default
+            except Exception:
+                pass
+
+            return default
+
+        province = get_optional(farm, "province")
+        district = get_optional(farm, "district")
+        tehsil = get_optional(farm, "tehsil")
+        place_name = get_optional(farm, "place_name")
 
         popup_html = f"""
-        <div style="width:260px;">
-            <h4 style="margin-bottom:8px;">
-                🌾 {farm_name}
-            </h4>
+        <div style="
+            width: 280px;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        ">
 
-            <b>Farmer:</b> {farmer_name}<br>
-            <b>Area:</b> {area} acres<br>
-            <b>Irrigation:</b> {irrigation}<br>
-            <b>Soil:</b> {soil}<br>
+            <h3 style="margin-bottom:10px;">
+                🌾 {farm_name}
+            </h3>
+
+            <b>👨‍🌾 Farmer:</b> {farmer_name}<br>
+
+            <b>📐 Area:</b> {area} acres<br>
+
+            <b>💧 Irrigation:</b> {irrigation}<br>
+
+            <b>🌱 Soil:</b> {soil}<br>
+
+            <hr>
+
+            <b>📍 Province:</b> {province}<br>
+
+            <b>🏙️ District:</b> {district}<br>
+
+            <b>🏘️ Tehsil:</b> {tehsil}<br>
+
+            <b>📌 Place:</b> {place_name}<br>
+
+            <hr>
+
             <b>Latitude:</b> {lat:.6f}<br>
+
             <b>Longitude:</b> {lon:.6f}
+
         </div>
         """
 
-        folium.Marker(
+        folium.CircleMarker(
             location=[lat, lon],
+            radius=9,
+            color="green",
+            weight=3,
+            fill=True,
+            fill_opacity=0.85,
             tooltip=f"🌾 {farm_name}",
             popup=folium.Popup(
                 popup_html,
-                max_width=320
-            ),
-            icon=folium.Icon(
-                icon="home",
-                prefix="fa"
+                max_width=350
             )
         ).add_to(farm_layer)
 
-        # -----------------------------------------------------
-        # Add fields belonging to this farm
-        # -----------------------------------------------------
-        try:
-            fields = get_fields_by_farm(farm["id"])
-        except Exception:
-            fields = []
-
-        for field in fields:
-
-            # Fields may not have their own coordinates in the
-            # current database, so display them around the farm
-            # only if coordinates exist.
-            try:
-                field_lat = float(field["latitude"])
-                field_lon = float(field["longitude"])
-            except (KeyError, TypeError, ValueError):
-                continue
-
-            field_popup = f"""
-            <div style="width:240px;">
-                <h4>🌱 {field["field_name"]}</h4>
-                <b>Crop:</b> {field["crop"]}<br>
-                <b>Variety:</b> {field["variety"]}<br>
-                <b>Area:</b> {field["area_acres"]} acres<br>
-                <b>Crop Stage:</b> {field["crop_stage"]}
-            </div>
-            """
-
-            folium.CircleMarker(
-                location=[field_lat, field_lon],
-                radius=7,
-                popup=folium.Popup(
-                    field_popup,
-                    max_width=300
-                ),
-                tooltip=f"🌱 {field['field_name']}"
-            ).add_to(field_layer)
-
     farm_layer.add_to(m)
-    field_layer.add_to(m)
 
     # ---------------------------------------------------------
-    # Layer switcher
+    # AUTO FIT ALL FARMS
+    # ---------------------------------------------------------
+    if selected_farm == "All Farms" and len(bounds) > 1:
+
+        m.fit_bounds(
+            bounds,
+            max_zoom=14
+        )
+
+    # ---------------------------------------------------------
+    # MAP CONTROLS
     # ---------------------------------------------------------
     folium.LayerControl(
         position="topright",
@@ -2286,91 +2389,48 @@ def show_gis_map():
     ).add_to(m)
 
     # ---------------------------------------------------------
-    # Display map
+    # FULLSCREEN BUTTON
+    # ---------------------------------------------------------
+    try:
+        from folium.plugins import Fullscreen
+
+        Fullscreen(
+            position="topleft",
+            title="Open fullscreen",
+            title_cancel="Exit fullscreen",
+            force_separate_button=True
+        ).add_to(m)
+
+    except Exception:
+        pass
+
+    # ---------------------------------------------------------
+    # MOUSE COORDINATES
+    # ---------------------------------------------------------
+    try:
+        from folium.plugins import MousePosition
+
+        MousePosition(
+            position="bottomright",
+            separator=" | ",
+            prefix="Coordinates:",
+            num_digits=6
+        ).add_to(m)
+
+    except Exception:
+        pass
+
+    # ---------------------------------------------------------
+    # DISPLAY MAP
     # ---------------------------------------------------------
     st.markdown("### 📍 Farm Locations")
 
     st_folium(
         m,
         width=None,
-        height=650,
+        height=700,
         returned_objects=[]
     )
-
-
-# ============================================================
-# SATELLITE
-# ============================================================
-
-def show_satellite():
-
-    section_header(
-        "🛰️ Satellite Intelligence",
-        "Satellite-based agricultural monitoring and vegetation intelligence.",
-    )
-
-    st.info(
-        "Your existing Sentinel-2 / NDVI functionality "
-        "will be integrated here."
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        with st.container(border=True):
-
-            st.subheader("Satellite Analysis")
-
-            st.selectbox(
-                "Satellite Source",
-                [
-                    "Sentinel-2",
-                    "Landsat",
-                    "Other",
-                ],
-            )
-
-            st.selectbox(
-                "Analysis",
-                [
-                    "NDVI",
-                    "Vegetation Health",
-                    "Temporal NDVI",
-                    "Other",
-                ],
-            )
-
-            st.date_input(
-                "Analysis Date"
-            )
-
-            st.button(
-                "Run Satellite Analysis",
-                type="primary",
-                use_container_width=True,
-            )
-
-    with col2:
-
-        with st.container(border=True):
-
-            st.subheader("Vegetation Indicators")
-
-            st.metric(
-                "NDVI Mean",
-                "—",
-            )
-
-            st.metric(
-                "NDVI Minimum",
-                "—",
-            )
-
-            st.metric(
-                "NDVI Maximum",
-                "—",
-            )
 
 
 # ============================================================
