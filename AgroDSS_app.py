@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import date
 
+import folium
+from streamlit_folium import st_folium
+
 from database import (
     add_farmer,
     add_farm,
@@ -185,15 +188,16 @@ with st.sidebar:
     st.subheader("Navigation")
 
     navigation_items = [
-        ("📊", "Dashboard"),
-        ("👨‍🌾", "Farmer & Farm"),
-        ("🛰️", "Satellite Intelligence"),
-        ("🌦️", "Weather Intelligence"),
-        ("💧", "Water & Irrigation"),
-        ("🤖", "AI Agronomist"),
-        ("📚", "Knowledge Base"),
-        ("📄", "Reports"),
-    ]
+    ("📊", "Dashboard"),
+    ("👨‍🌾", "Farmer & Farm"),
+    ("🗺️", "GIS & Farm Map"),
+    ("🛰️", "Satellite Intelligence"),
+    ("🌦️", "Weather Intelligence"),
+    ("💧", "Water & Irrigation"),
+    ("🤖", "AI Agronomist"),
+    ("📚", "Knowledge Base"),
+    ("📄", "Reports"),
+]
 
     for icon, page_name in navigation_items:
 
@@ -1495,6 +1499,254 @@ def show_reports():
             use_container_width=True,
         )
 
+def show_gis_map():
+
+    section_header(
+        "🗺️ GIS & Farm Map",
+        "View registered farms and their geographic locations.",
+    )
+
+    farms = get_farms()
+
+    if not farms:
+
+        st.info(
+            "No farms are available yet. "
+            "Go to Farmer & Farm and add a farm first."
+        )
+
+        return
+
+    # ========================================================
+    # FARM SELECTION
+    # ========================================================
+
+    farm_options = {
+        (
+            f"{farm['farm_name']} — "
+            f"{farm['farmer_name']} "
+            f"(ID: {farm['id']})"
+        ):
+        farm["id"]
+        for farm in farms
+    }
+
+    selected_farm_name = st.selectbox(
+        "Select Farm",
+        list(farm_options.keys()),
+    )
+
+    selected_farm_id = farm_options[
+        selected_farm_name
+    ]
+
+    selected_farm = None
+
+    for farm in farms:
+
+        if farm["id"] == selected_farm_id:
+
+            selected_farm = farm
+
+            break
+
+    if selected_farm is None:
+
+        st.error(
+            "Selected farm could not be found."
+        )
+
+        return
+
+    latitude = selected_farm["latitude"]
+    longitude = selected_farm["longitude"]
+
+    # ========================================================
+    # FARM INFORMATION
+    # ========================================================
+
+    st.divider()
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+
+        st.metric(
+            "Farm",
+            selected_farm["farm_name"],
+        )
+
+    with col2:
+
+        st.metric(
+            "Area",
+            f"{selected_farm['area_acres']} acres",
+        )
+
+    with col3:
+
+        st.metric(
+            "Latitude",
+            f"{latitude:.6f}",
+        )
+
+    with col4:
+
+        st.metric(
+            "Longitude",
+            f"{longitude:.6f}",
+        )
+
+    # ========================================================
+    # MAP
+    # ========================================================
+
+    st.subheader("Farm Location")
+
+    farm_map = folium.Map(
+        location=[
+            latitude,
+            longitude,
+        ],
+        zoom_start=13,
+        control_scale=True,
+    )
+
+    folium.Marker(
+        location=[
+            latitude,
+            longitude,
+        ],
+        tooltip=selected_farm["farm_name"],
+        popup=(
+            f"<b>{selected_farm['farm_name']}</b><br>"
+            f"Farmer: {selected_farm['farmer_name']}<br>"
+            f"Area: {selected_farm['area_acres']} acres<br>"
+            f"Irrigation: {selected_farm['irrigation_system']}<br>"
+            f"Soil: {selected_farm['soil_type']}"
+        ),
+        icon=folium.Icon(
+            icon="leaf",
+            prefix="fa",
+        ),
+    ).add_to(farm_map)
+
+    st_folium(
+        farm_map,
+        width=None,
+        height=500,
+        returned_objects=[],
+    )
+
+    # ========================================================
+    # LOCATION DETAILS
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("Farm Location Details")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        with st.container(border=True):
+
+            st.write("**Farm Information**")
+
+            st.write(
+                f"Farm: {selected_farm['farm_name']}"
+            )
+
+            st.write(
+                f"Farmer: {selected_farm['farmer_name']}"
+            )
+
+            st.write(
+                f"Area: {selected_farm['area_acres']} acres"
+            )
+
+    with col2:
+
+        with st.container(border=True):
+
+            st.write("**Geographic Information**")
+
+            st.write(
+                f"Latitude: {latitude:.6f}"
+            )
+
+            st.write(
+                f"Longitude: {longitude:.6f}"
+            )
+
+            st.write(
+                "Coordinate source: Farmer-entered location"
+            )
+
+    # ========================================================
+    # FIELDS AT THIS FARM
+    # ========================================================
+
+    fields = get_fields()
+
+    farm_fields = [
+        field
+        for field in fields
+        if field["farm_id"] == selected_farm_id
+    ]
+
+    st.divider()
+
+    st.subheader("Fields at This Farm")
+
+    if not farm_fields:
+
+        st.info(
+            "No fields have been registered for this farm yet."
+        )
+
+    else:
+
+        for field in farm_fields:
+
+            with st.container(border=True):
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+
+                    st.write(
+                        f"**{field['field_name']}**"
+                    )
+
+                    st.caption(
+                        f"Field ID: {field['id']}"
+                    )
+
+                with col2:
+
+                    st.write(
+                        f"Crop: "
+                        f"{field['crop'] or 'Not specified'}"
+                    )
+
+                    st.write(
+                        f"Area: "
+                        f"{field['area_acres']} acres"
+                    )
+
+                with col3:
+
+                    st.write(
+                        f"Stage: "
+                        f"{field['crop_stage']}"
+                    )
+
+                    st.write(
+                        f"Sowing: "
+                        f"{field['sowing_date']}"
+                    )
 
 # ============================================================
 # PAGE ROUTER
@@ -1510,6 +1762,10 @@ if page == "Dashboard":
 elif page == "Farmer & Farm":
 
     show_farmer_farm()
+
+elif page == "GIS & Farm Map":
+
+    show_gis_map()
 
 elif page == "Satellite Intelligence":
 
@@ -1538,7 +1794,6 @@ elif page == "Reports":
 else:
 
     show_dashboard()
-
 
 # ============================================================
 # FOOTER
