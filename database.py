@@ -341,25 +341,39 @@ def update_farmer(
 
     return updated
 
-
-def delete_farm(farm_id):
+def delete_farmer(farmer_id):
     """
-    Delete a farm and all fields belonging to that farm.
+    Delete a farmer and all farms/fields belonging to that farmer.
     """
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # Delete fields belonging to the farm first
+        # Find all farms belonging to the farmer
         cursor.execute(
-            "DELETE FROM fields WHERE farm_id = ?",
-            (farm_id,)
+            "SELECT id FROM farms WHERE farmer_id = ?",
+            (farmer_id,)
         )
 
-        # Then delete the farm
+        farm_rows = cursor.fetchall()
+
+        # Delete fields for each farm
+        for farm in farm_rows:
+            cursor.execute(
+                "DELETE FROM fields WHERE farm_id = ?",
+                (farm["id"],)
+            )
+
+        # Delete farms
         cursor.execute(
-            "DELETE FROM farms WHERE id = ?",
-            (farm_id,)
+            "DELETE FROM farms WHERE farmer_id = ?",
+            (farmer_id,)
+        )
+
+        # Finally delete farmer
+        cursor.execute(
+            "DELETE FROM farmers WHERE id = ?",
+            (farmer_id,)
         )
 
         conn.commit()
@@ -371,8 +385,7 @@ def delete_farm(farm_id):
 
     finally:
         conn.close()
-
-
+        
 # ============================================================
 # FARM FUNCTIONS
 # ============================================================
@@ -607,26 +620,34 @@ def update_farm(
 
 
 def delete_farm(farm_id):
+    """
+    Delete a farm and all fields belonging to that farm.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    connection = get_connection()
+    try:
+        # Delete fields belonging to the farm first
+        cursor.execute(
+            "DELETE FROM fields WHERE farm_id = ?",
+            (farm_id,)
+        )
 
-    cursor = connection.cursor()
+        # Then delete the farm
+        cursor.execute(
+            "DELETE FROM farms WHERE id = ?",
+            (farm_id,)
+        )
 
-    cursor.execute(
-        """
-        DELETE FROM farms
-        WHERE id = ?
-        """,
-        (farm_id,),
-    )
+        conn.commit()
+        return True
 
-    connection.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
-    deleted = cursor.rowcount > 0
-
-    connection.close()
-
-    return deleted
+    finally:
+        conn.close()
 
 
 # ============================================================
@@ -826,26 +847,27 @@ def update_field(
 
 
 def delete_field(field_id):
+    """
+    Delete a single field.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    connection = get_connection()
+    try:
+        cursor.execute(
+            "DELETE FROM fields WHERE id = ?",
+            (field_id,)
+        )
 
-    cursor = connection.cursor()
+        conn.commit()
+        return True
 
-    cursor.execute(
-        """
-        DELETE FROM fields
-        WHERE id = ?
-        """,
-        (field_id,),
-    )
+    except Exception:
+        conn.rollback()
+        raise
 
-    connection.commit()
-
-    deleted = cursor.rowcount > 0
-
-    connection.close()
-
-    return deleted
+    finally:
+        conn.close()
 
 
 # ============================================================
