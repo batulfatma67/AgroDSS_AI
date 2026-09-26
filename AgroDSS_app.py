@@ -1,5 +1,16 @@
 import streamlit as st
+from datetime import date
 
+from database import (
+    add_farmer,
+    add_farm,
+    add_field,
+    get_farmers,
+    get_farms,
+    get_fields,
+    get_farms_by_farmer,
+    get_dashboard_statistics,
+)
 
 # ============================================================
 # PAGE CONFIGURATION
@@ -240,7 +251,8 @@ def feature_card(icon, title, description, status="Coming Soon"):
 # ============================================================
 
 def show_dashboard():
-
+    stats = get_dashboard_statistics()
+    
     st.title("🌾 AgriDSS AI")
 
     st.subheader("AI-Powered Agricultural Decision Support System")
@@ -263,32 +275,27 @@ def show_dashboard():
 
     with col1:
         st.metric(
-            "System Status",
-            "Online",
-            "Ready",
+            "Farmers",
+            stats["farmers"],
         )
 
     with col2:
         st.metric(
-            "Farm Records",
-            "0",
-            "To be added",
+            "Farms",
+            stats["farms"],
         )
 
     with col3:
         st.metric(
-            "Satellite",
-            "Ready",
-            "NDVI module",
+            "Fields",
+            stats["fields"],
         )
 
     with col4:
         st.metric(
-            "AI Engine",
-            "Ready",
-            "Integration planned",
+            "Active Crops",
+            stats["crops"],
         )
-
     st.divider()
 
     # --------------------------------------------------------
@@ -466,135 +473,535 @@ def show_farmer_farm():
 
     section_header(
         "👨‍🌾 Farmer & Farm",
-        "Manage farmer profiles, farms, fields, crops, and basic "
-        "agricultural information.",
+        "Manage farmers, farms, fields and crop information.",
     )
 
-    st.info(
-        "This module will become the central source of farmer and "
-        "farm information used by the AI decision-support workflow."
-    )
-
-    tab1, tab2 = st.tabs(
+    tab1, tab2, tab3 = st.tabs(
         [
-            "Farmer Information",
-            "Farm / Field Information",
+            "👨‍🌾 Farmers",
+            "🚜 Farms",
+            "🌱 Fields",
         ]
     )
 
+    # ========================================================
+    # FARMERS
+    # ========================================================
+
     with tab1:
 
-        st.subheader("Farmer Profile")
+        st.subheader("Add Farmer")
 
-        col1, col2 = st.columns(2)
+        with st.form("farmer_form"):
 
-        with col1:
+            col1, col2 = st.columns(2)
 
-            st.text_input(
-                "Farmer Name",
-                placeholder="Enter farmer name",
+            with col1:
+
+                farmer_name = st.text_input(
+                    "Farmer Name *",
+                    placeholder="Enter farmer name",
+                )
+
+                phone = st.text_input(
+                    "Phone Number",
+                    placeholder="Optional",
+                )
+
+            with col2:
+
+                village = st.text_input(
+                    "Village / Area",
+                    placeholder="Enter village or area",
+                )
+
+                province = st.selectbox(
+                    "Province",
+                    [
+                        "Select province",
+                        "Punjab",
+                        "Sindh",
+                        "Khyber Pakhtunkhwa",
+                        "Balochistan",
+                        "Gilgit-Baltistan",
+                        "Azad Jammu & Kashmir",
+                    ],
+                )
+
+            submitted = st.form_submit_button(
+                "Save Farmer",
+                type="primary",
+                use_container_width=True,
             )
 
-            st.text_input(
-                "Phone Number",
-                placeholder="Optional",
+            if submitted:
+
+                if not farmer_name.strip():
+
+                    st.error(
+                        "Farmer name is required."
+                    )
+
+                else:
+
+                    if province == "Select province":
+                        province = ""
+
+                    farmer_id = add_farmer(
+                        name=farmer_name.strip(),
+                        phone=phone.strip(),
+                        village=village.strip(),
+                        province=province,
+                    )
+
+                    st.success(
+                        f"Farmer added successfully. Farmer ID: {farmer_id}"
+                    )
+
+        st.divider()
+
+        st.subheader("Registered Farmers")
+
+        farmers = get_farmers()
+
+        if farmers:
+
+            for farmer in farmers:
+
+                with st.container(border=True):
+
+                    col1, col2, col3 = st.columns(
+                        [3, 2, 2]
+                    )
+
+                    with col1:
+
+                        st.write(
+                            f"**{farmer['name']}**"
+                        )
+
+                        st.caption(
+                            f"Farmer ID: {farmer['id']}"
+                        )
+
+                    with col2:
+
+                        st.write(
+                            farmer["village"]
+                            if farmer["village"]
+                            else "Location not provided"
+                        )
+
+                        st.caption(
+                            farmer["province"]
+                            if farmer["province"]
+                            else "Province not provided"
+                        )
+
+                    with col3:
+
+                        st.write(
+                            farmer["phone"]
+                            if farmer["phone"]
+                            else "No phone"
+                        )
+
+        else:
+
+            st.info(
+                "No farmers have been added yet."
             )
 
-        with col2:
-
-            st.text_input(
-                "Village / Area",
-                placeholder="Enter village or area",
-            )
-
-            st.selectbox(
-                "Province",
-                [
-                    "Select province",
-                    "Punjab",
-                    "Sindh",
-                    "Khyber Pakhtunkhwa",
-                    "Balochistan",
-                    "Gilgit-Baltistan",
-                    "Azad Jammu & Kashmir",
-                ],
-            )
-
-        if st.button(
-            "Save Farmer",
-            type="primary",
-        ):
-            st.success(
-                "Farmer interface is ready. Database integration "
-                "will be added in the next development stage."
-            )
+    # ========================================================
+    # FARMS
+    # ========================================================
 
     with tab2:
 
-        st.subheader("Farm / Field")
+        st.subheader("Add Farm")
 
-        col1, col2 = st.columns(2)
+        farmers = get_farmers()
 
-        with col1:
+        if not farmers:
 
-            st.text_input(
-                "Farm Name",
-                placeholder="e.g. Main Farm",
+            st.warning(
+                "Please add a farmer first before creating a farm."
             )
 
-            st.number_input(
-                "Farm Area (acres)",
-                min_value=0.0,
-                step=0.1,
+        else:
+
+            farmer_options = {
+                f"{farmer['name']} (ID: {farmer['id']})":
+                farmer["id"]
+                for farmer in farmers
+            }
+
+            with st.form("farm_form"):
+
+                selected_farmer = st.selectbox(
+                    "Farmer *",
+                    list(farmer_options.keys()),
+                )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    farm_name = st.text_input(
+                        "Farm Name *",
+                        placeholder="e.g. Main Farm",
+                    )
+
+                    area_acres = st.number_input(
+                        "Farm Area (acres)",
+                        min_value=0.01,
+                        value=1.0,
+                        step=0.1,
+                    )
+
+                    irrigation_system = st.selectbox(
+                        "Irrigation System",
+                        [
+                            "Canal",
+                            "Tubewell",
+                            "Drip",
+                            "Sprinkler",
+                            "Flood",
+                            "Other",
+                        ],
+                    )
+
+                    soil_type = st.selectbox(
+                        "Soil Type",
+                        [
+                            "Not specified",
+                            "Sandy",
+                            "Sandy Loam",
+                            "Loam",
+                            "Clay Loam",
+                            "Clay",
+                            "Silty Loam",
+                            "Other",
+                        ],
+                    )
+
+                with col2:
+
+                    latitude = st.number_input(
+                        "Latitude",
+                        min_value=-90.0,
+                        max_value=90.0,
+                        value=31.5204,
+                        format="%.6f",
+                    )
+
+                    longitude = st.number_input(
+                        "Longitude",
+                        min_value=-180.0,
+                        max_value=180.0,
+                        value=74.3587,
+                        format="%.6f",
+                    )
+
+                    st.caption(
+                        "Enter the geographic coordinates of the farm."
+                    )
+
+                submitted = st.form_submit_button(
+                    "Save Farm",
+                    type="primary",
+                    use_container_width=True,
+                )
+
+                if submitted:
+
+                    if not farm_name.strip():
+
+                        st.error(
+                            "Farm name is required."
+                        )
+
+                    else:
+
+                        farmer_id = farmer_options[
+                            selected_farmer
+                        ]
+
+                        farm_id = add_farm(
+                            farmer_id=farmer_id,
+                            farm_name=farm_name.strip(),
+                            area_acres=area_acres,
+                            latitude=latitude,
+                            longitude=longitude,
+                            irrigation_system=irrigation_system,
+                            soil_type=soil_type,
+                        )
+
+                        st.success(
+                            f"Farm added successfully. Farm ID: {farm_id}"
+                        )
+
+        st.divider()
+
+        st.subheader("Registered Farms")
+
+        farms = get_farms()
+
+        if farms:
+
+            for farm in farms:
+
+                with st.container(border=True):
+
+                    col1, col2, col3 = st.columns(
+                        [3, 3, 2]
+                    )
+
+                    with col1:
+
+                        st.write(
+                            f"**{farm['farm_name']}**"
+                        )
+
+                        st.caption(
+                            f"Farm ID: {farm['id']}"
+                        )
+
+                        st.write(
+                            f"Farmer: {farm['farmer_name']}"
+                        )
+
+                    with col2:
+
+                        st.write(
+                            f"Area: {farm['area_acres']} acres"
+                        )
+
+                        st.write(
+                            f"Location: "
+                            f"{farm['latitude']:.6f}, "
+                            f"{farm['longitude']:.6f}"
+                        )
+
+                    with col3:
+
+                        st.write(
+                            f"Irrigation: "
+                            f"{farm['irrigation_system']}"
+                        )
+
+                        st.write(
+                            f"Soil: "
+                            f"{farm['soil_type']}"
+                        )
+
+        else:
+
+            st.info(
+                "No farms have been added yet."
             )
 
-            st.selectbox(
-                "Crop",
-                [
-                    "Select crop",
-                    "Wheat",
-                    "Rice",
-                    "Maize",
-                    "Cotton",
-                    "Sugarcane",
-                    "Other",
-                ],
+    # ========================================================
+    # FIELDS
+    # ========================================================
+
+    with tab3:
+
+        st.subheader("Add Field / Crop")
+
+        farms = get_farms()
+
+        if not farms:
+
+            st.warning(
+                "Please add a farm first before creating a field."
             )
 
-        with col2:
+        else:
 
-            st.number_input(
-                "Latitude",
-                value=31.5204,
-                format="%.6f",
-            )
+            farm_options = {
+                (
+                    f"{farm['farm_name']} — "
+                    f"{farm['farmer_name']} "
+                    f"(ID: {farm['id']})"
+                ):
+                farm["id"]
+                for farm in farms
+            }
 
-            st.number_input(
-                "Longitude",
-                value=74.3587,
-                format="%.6f",
-            )
+            with st.form("field_form"):
 
-            st.selectbox(
-                "Irrigation System",
-                [
-                    "Select irrigation system",
-                    "Canal",
-                    "Tubewell",
-                    "Drip",
-                    "Sprinkler",
-                    "Flood",
-                    "Other",
-                ],
-            )
+                selected_farm = st.selectbox(
+                    "Farm *",
+                    list(farm_options.keys()),
+                )
 
-        if st.button(
-            "Save Farm",
-            type="primary",
-        ):
-            st.success(
-                "Farm interface is ready. Persistent farm storage "
-                "will be connected in the next stage."
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    field_name = st.text_input(
+                        "Field Name *",
+                        placeholder="e.g. Field 1",
+                    )
+
+                    crop = st.selectbox(
+                        "Crop",
+                        [
+                            "Select crop",
+                            "Wheat",
+                            "Rice",
+                            "Maize",
+                            "Cotton",
+                            "Sugarcane",
+                            "Potato",
+                            "Other",
+                        ],
+                    )
+
+                    variety = st.text_input(
+                        "Variety",
+                        placeholder="Optional",
+                    )
+
+                    field_area = st.number_input(
+                        "Field Area (acres)",
+                        min_value=0.01,
+                        value=1.0,
+                        step=0.1,
+                    )
+
+                with col2:
+
+                    sowing_date = st.date_input(
+                        "Sowing Date",
+                        value=date.today(),
+                    )
+
+                    crop_stage = st.selectbox(
+                        "Crop Stage",
+                        [
+                            "Not specified",
+                            "Germination",
+                            "Vegetative",
+                            "Tillering",
+                            "Flowering",
+                            "Grain Filling",
+                            "Maturity",
+                            "Harvest",
+                        ],
+                    )
+
+                    st.caption(
+                        "Crop-stage estimation will later be "
+                        "connected to sowing date and crop-specific logic."
+                    )
+
+                submitted = st.form_submit_button(
+                    "Save Field",
+                    type="primary",
+                    use_container_width=True,
+                )
+
+                if submitted:
+
+                    if not field_name.strip():
+
+                        st.error(
+                            "Field name is required."
+                        )
+
+                    else:
+
+                        farm_id = farm_options[
+                            selected_farm
+                        ]
+
+                        field_id = add_field(
+                            farm_id=farm_id,
+                            field_name=field_name.strip(),
+                            crop=(
+                                ""
+                                if crop == "Select crop"
+                                else crop
+                            ),
+                            variety=variety.strip(),
+                            sowing_date=str(
+                                sowing_date
+                            ),
+                            crop_stage=crop_stage,
+                            area_acres=field_area,
+                        )
+
+                        st.success(
+                            f"Field added successfully. "
+                            f"Field ID: {field_id}"
+                        )
+
+        st.divider()
+
+        st.subheader("Registered Fields")
+
+        fields = get_fields()
+
+        if fields:
+
+            for field in fields:
+
+                with st.container(border=True):
+
+                    col1, col2, col3 = st.columns(
+                        [3, 3, 2]
+                    )
+
+                    with col1:
+
+                        st.write(
+                            f"**{field['field_name']}**"
+                        )
+
+                        st.caption(
+                            f"Field ID: {field['id']}"
+                        )
+
+                        st.write(
+                            f"Farm: {field['farm_name']}"
+                        )
+
+                        st.write(
+                            f"Farmer: {field['farmer_name']}"
+                        )
+
+                    with col2:
+
+                        st.write(
+                            f"Crop: {field['crop'] or 'Not specified'}"
+                        )
+
+                        st.write(
+                            f"Variety: "
+                            f"{field['variety'] or 'Not specified'}"
+                        )
+
+                        st.write(
+                            f"Area: {field['area_acres']} acres"
+                        )
+
+                    with col3:
+
+                        st.write(
+                            f"Stage: {field['crop_stage']}"
+                        )
+
+                        st.write(
+                            f"Sowing: "
+                            f"{field['sowing_date']}"
+                        )
+
+        else:
+
+            st.info(
+                "No fields have been added yet."
             )
 
 
