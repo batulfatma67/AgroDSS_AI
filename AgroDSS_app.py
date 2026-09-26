@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import streamlit as st
+from textwrap import dedent
 
 
 # ============================================================
@@ -239,6 +240,7 @@ st.markdown(
 with st.sidebar:
 
     st.markdown(
+        dedent(
         """
         <div class="app-brand">
 
@@ -256,7 +258,8 @@ with st.sidebar:
             </div>
 
         </div>
-        """,
+        """
+        ),
         unsafe_allow_html=True,
     )
 
