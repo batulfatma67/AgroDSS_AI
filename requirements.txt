@@ -12,3 +12,4 @@ requests
 earthengine-api
 geemap
 reportlab
+geopy
