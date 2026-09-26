@@ -1118,8 +1118,6 @@ def show_dashboard():
         """,
         unsafe_allow_html=True
     )
-```
-
 
 # ============================================================
 # FARMER MANAGEMENT
